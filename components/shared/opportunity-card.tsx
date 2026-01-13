@@ -33,9 +33,9 @@ const typeLabels: Record<OpportunityType, string> = {
 }
 
 const typeColors: Record<OpportunityType, string> = {
-  internship: "bg-chart-2 text-chart-2",
-  "graduation-project": "bg-chart-3 text-chart-3",
-  job: "bg-primary text-primary",
+  internship: "bg-chart-2 text-chart-2 text-white",
+  "graduation-project": "bg-chart-3 text-chart-3 text-white",
+  job: "bg-primary text-primary text-white",
 }
 
 export function OpportunityCard({ opportunity, onFavorite, isFavorite = false }: OpportunityCardProps) {
