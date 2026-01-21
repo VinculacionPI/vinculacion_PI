@@ -1,7 +1,7 @@
-import { OpportunityForm } from "@/components/company/opportunity-form"
+import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import { OpportunityForm } from "@/components/company/opportunity-form"
 
 export default function NewOpportunityPage() {
   return (
@@ -14,8 +14,10 @@ export default function NewOpportunityPage() {
       </Link>
 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Nueva Oportunidad</h1>
-        <p className="text-muted-foreground">Completa los detalles de la oportunidad que deseas publicar</p>
+        <h1 className="text-3xl font-bold mb-2">Nueva Publicación</h1>
+        <p className="text-muted-foreground">
+          Registra una nueva oportunidad para tu empresa
+        </p>
       </div>
 
       <OpportunityForm />
