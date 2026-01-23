@@ -362,7 +362,7 @@ export function StudentRegisterForm() {
 
       // Redirigir después de 3 segundos
       setTimeout(() => {
-        router.push('/register/success?email=' + encodeURIComponent(formData.institutionalEmail) + '&type=student')
+        router.push('/login?registered=true&email=' + encodeURIComponent(formData.institutionalEmail))
       }, 3000)
 
     } catch (err) {
