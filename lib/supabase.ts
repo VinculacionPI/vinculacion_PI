@@ -10,5 +10,5 @@ export function createServerSupabase() {
   const key = serviceRoleKey ?? anonKey
   return createClient(process.env.SUPABASE_URL ?? url!, key!)
 }
-export { createClient }
 
+export { createClient }
