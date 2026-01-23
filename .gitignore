@@ -3,6 +3,9 @@
 /.pnp
 .pnp.js
 
+# ignore folder node_modules
+node_modules/
+
 # testing
 /coverage
 
