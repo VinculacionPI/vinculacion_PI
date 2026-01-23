@@ -25,6 +25,8 @@ import Link from "next/link"
 import { obtenerDashboardEmpresa, obtenerOportunidadesEmpresa } from "@/lib/services/persona5-backend"
 import { DashboardStats } from "@/components/company/dashboard-stats"
 import { LoadingState } from "@/components/shared/loading-state"
+import { getCompanyIdFromUrl } from '@/lib/auth/get-current-user'
+
 
 interface Filters {
   search: string
@@ -39,9 +41,7 @@ export default function CompanyDashboardPage() {
   const router = useRouter()
   
   // Obtener empresa_id del URL
-  const empresaId = typeof window !== 'undefined' 
-    ? new URLSearchParams(window.location.search).get('empresa_id') 
-    : 'caa6a12e-b110-4616-b786-7f18fea2b443'
+  const empresaId = getCompanyIdFromUrl()
 
   const [opportunities, setOpportunities] = useState<any[]>([])
   const [filteredOpportunities, setFilteredOpportunities] = useState<any[]>([])

@@ -98,28 +98,21 @@ export async function generarFlyer(publicacionId: string, plantilla = 'default')
   })
 }
 
-export async function generarInforme({
-  tipo,
-  fecha_inicio,
-  fecha_fin,
-  formato = 'CSV',
-}: {
-  tipo: 'empresas' | 'oportunidades' | 'estudiantes' | 'aplicaciones'
-  fecha_inicio?: string
-  fecha_fin?: string
-  formato?: 'CSV' | 'JSON'
-}) {
-  return callEdgeFunction('generar-informe-tfg', {
+  export async function generarInformeTFG({
+    empresa_id,
     tipo,
-    fecha_inicio,
-    fecha_fin,
-    formato,
-  })
-}
-
-export async function generarInformeTFG(formato: 'CSV' | 'JSON' = 'CSV') {
-  return callEdgeFunction('generar-informe-tfg', { formato })
-}
+    formato = 'JSON',
+  }: {
+    empresa_id?: string
+    tipo?: string
+    formato?: 'CSV' | 'JSON'
+  } = {}) {
+    return callEdgeFunction('generar-informe-tfg', {
+      empresa_id,
+      tipo,
+      formato,
+    })
+  }
 
 export async function obtenerOportunidad(id: string) {
   const { data, error } = await supabase

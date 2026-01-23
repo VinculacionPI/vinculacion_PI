@@ -1,480 +1,394 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { 
-  FileText, 
-  Download, 
-  Filter, 
-  TrendingUp, 
-  Building2,
-  Calendar,
-  Eye,
-  BarChart3
-} from "lucide-react"
-import { DashboardHeader } from "@/components/shared/dashboard-header"
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import * as XLSX from 'xlsx'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Download, FileText, TrendingUp, Users, CheckCircle2, XCircle } from "lucide-react"
+import { generarInformeTFG } from "@/lib/services/persona5-backend"
+import { supabase } from "@/lib/supabase"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from "recharts"
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
+
+interface TFGData {
+  id: string
+  title: string
+  company_name: string
+  status: string
+  approval_status: string
+  created_at: string
+  mode: string
+  type: string
+}
+
+interface ReportData {
+  total_tfgs: number
+  activos: number
+  cerrados: number
+  pendientes_aprobacion: number
+  aprobados: number
+  rechazados: number
+  tfgs: TFGData[]
+}
 
 export default function InformesPage() {
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [previewData, setPreviewData] = useState<any>(null)
-  const [filters, setFilters] = useState({
-    fechaInicio: "",
-    fechaFin: "",
-    empresa: "all",
-    estado: "all",
-  })
+  const [reportData, setReportData] = useState<ReportData | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [selectedEmpresa, setSelectedEmpresa] = useState("all")
+  const [selectedTipo, setSelectedTipo] = useState("all")
+  const [empresas, setEmpresas] = useState<Array<{id: string, name: string}>>([])
 
-  const handleGeneratePreview = async () => {
-    setIsGenerating(true)
+  useEffect(() => {
+    loadEmpresas()
+  }, [])
+
+  const loadEmpresas = async () => {
     try {
-      const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      const BACKEND_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-
-      const response = await fetch(`${BACKEND_URL}/functions/v1/generar-informe-tfg`, {
-        method: 'POST',
-        headers: {
-          'apikey': ANON_KEY,
-          'Authorization': `Bearer ${ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          formato: 'JSON',
-          fecha_inicio: filters.fechaInicio || undefined,
-          fecha_fin: filters.fechaFin || undefined,
-          empresa: filters.empresa !== 'all' ? filters.empresa : undefined,
-          estado: filters.estado !== 'all' ? filters.estado : undefined,
-        }),
-      })
-
-      const result = await response.json()
+      const { data, error } = await supabase
+        .from('COMPANY')
+        .select('id, name')
+        .order('name')
       
-      if (result.success) {
-        const data = JSON.parse(result.data.contenido)
-        setPreviewData(data)
-      } else {
-        alert('Error generando preview: ' + result.error)
+      if (data) {
+        setEmpresas(data)
       }
     } catch (err) {
-      console.error('Error:', err)
-      alert('Error generando preview')
-    } finally {
-      setIsGenerating(false)
+      console.error('Error cargando empresas:', err)
     }
   }
 
-  const handleDownload = async (formato: 'CSV' | 'JSON') => {
-    setIsGenerating(true)
+    const handleGenerateReport = async () => {
+    setIsLoading(true)
     try {
-      const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      const BACKEND_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-
-      const response = await fetch(`${BACKEND_URL}/functions/v1/generar-informe-tfg`, {
-        method: 'POST',
-        headers: {
-          'apikey': ANON_KEY,
-          'Authorization': `Bearer ${ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          formato,
-          fecha_inicio: filters.fechaInicio || undefined,
-          fecha_fin: filters.fechaFin || undefined,
-          empresa: filters.empresa !== 'all' ? filters.empresa : undefined,
-          estado: filters.estado !== 'all' ? filters.estado : undefined,
-        }),
-      })
-
-      const result = await response.json()
-      
-      if (result.success) {
-        const blob = new Blob([result.data.contenido], { 
-          type: formato === 'CSV' ? 'text/csv' : 'application/json' 
+        const response = await generarInformeTFG({
+        empresa_id: selectedEmpresa === "all" ? undefined : selectedEmpresa,
+        tipo: selectedTipo === "all" ? undefined : selectedTipo,
         })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = result.data.filename
-        link.click()
-        URL.revokeObjectURL(url)
-      } else {
-        alert('Error descargando: ' + result.error)
-      }
+
+        console.log('Respuesta completa:', response)
+
+        if (response.success && response.data) {
+        // Parsear el contenido JSON que viene como string
+        const contenido = JSON.parse(response.data.contenido)
+        
+        // Transformar al formato esperado
+        const transformedData: ReportData = {
+            total_tfgs: contenido.estadisticas.total_tfgs || 0,
+            activos: contenido.estadisticas.activos || 0,
+            cerrados: contenido.estadisticas.cerrados || 0,
+            pendientes_aprobacion: contenido.estadisticas.pendientes_aprobacion || 0,
+            aprobados: contenido.estadisticas.aprobados || 0,
+            rechazados: contenido.estadisticas.rechazados || 0,
+            tfgs: contenido.tfgs || []
+        }
+
+        console.log('Data transformada:', transformedData)
+        setReportData(transformedData)
+        }
     } catch (err) {
-      console.error('Error:', err)
-      alert('Error descargando informe')
+        console.error("Error generando reporte:", err)
     } finally {
-      setIsGenerating(false)
+        setIsLoading(false)
     }
-  }
-
-  const handleDownloadExcel = () => {
-    if (!previewData || !previewData.tfgs) {
-      alert('Genera un preview primero')
-      return
     }
 
-    const excelData = previewData.tfgs.map((tfg: any) => ({
-      'ID': tfg.id,
-      'Título': tfg.title,
-      'Empresa': tfg.COMPANY?.name || 'Sin empresa',
-      'Sector': tfg.COMPANY?.sector || 'N/A',
-      'Estado': tfg.status === 'OPEN' ? 'Activo' : 'Cerrado',
-      'Modalidad': tfg.mode || 'No especificado',
-      'Fecha Creación': new Date(tfg.created_at).toLocaleDateString('es-CR'),
-      'Descripción': (tfg.description || '').substring(0, 100),
+  const handleDownload = (format: "CSV" | "JSON" | "XLSX") => {
+    if (!reportData) return
+
+    const dataToExport = reportData.tfgs.map((tfg) => ({
+      ID: tfg.id,
+      Título: tfg.title,
+      Empresa: tfg.company_name,
+      Estado: tfg.status,
+      Aprobación: tfg.approval_status,
+      Fecha: new Date(tfg.created_at).toLocaleDateString("es-CR"),
+      Modalidad: tfg.mode,
+      Tipo: tfg.type,
     }))
 
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.json_to_sheet(excelData)
-    
-    // Ajustar anchos de columna
-    ws['!cols'] = [
-      { wch: 10 }, // ID
-      { wch: 40 }, // Título
-      { wch: 25 }, // Empresa
-      { wch: 20 }, // Sector
-      { wch: 10 }, // Estado
-      { wch: 15 }, // Modalidad
-      { wch: 15 }, // Fecha
-      { wch: 50 }, // Descripción
-    ]
+    if (format === "CSV") {
+      const headers = ["ID", "Título", "Empresa", "Estado", "Aprobación", "Fecha", "Modalidad", "Tipo"]
+      const csv = [
+        headers.join(","),
+        ...dataToExport.map((row) =>
+          [row.ID, `"${row.Título}"`, row.Empresa, row.Estado, row.Aprobación, row.Fecha, row.Modalidad, row.Tipo].join(
+            ","
+          )
+        ),
+      ].join("\n")
 
-    XLSX.utils.book_append_sheet(wb, ws, 'TFGs')
-    
-    const filename = `informe-tfg-${new Date().toISOString().split('T')[0]}.xlsx`
-    XLSX.writeFile(wb, filename)
+      const blob = new Blob([csv], { type: "text/csv" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `informe-tfg-${new Date().toISOString().split("T")[0]}.csv`
+      a.click()
+    } else if (format === "JSON") {
+      const json = JSON.stringify(dataToExport, null, 2)
+      const blob = new Blob([json], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `informe-tfg-${new Date().toISOString().split("T")[0]}.json`
+      a.click()
+    } else if (format === "XLSX") {
+      // Importar xlsx dinámicamente
+      import("xlsx").then((XLSX) => {
+        const ws = XLSX.utils.json_to_sheet(dataToExport)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Informe TFG")
+        XLSX.writeFile(wb, `informe-tfg-${new Date().toISOString().split("T")[0]}.xlsx`)
+      })
+    }
   }
 
-  const COLORS = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+  // Datos para gráficas
+  const statusData = reportData
+    ? [
+        { name: "Activos", value: reportData.activos, color: COLORS[0] },
+        { name: "Cerrados", value: reportData.cerrados, color: COLORS[1] },
+      ]
+    : []
+
+  const approvalData = reportData
+    ? [
+        { name: "Pendientes", value: reportData.pendientes_aprobacion, color: COLORS[2] },
+        { name: "Aprobados", value: reportData.aprobados, color: COLORS[0] },
+        { name: "Rechazados", value: reportData.rechazados, color: COLORS[3] },
+      ]
+    : []
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardHeader />
-      
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Informes de TFG</h1>
-          <p className="text-muted-foreground">
-            Genera reportes detallados sobre proyectos de graduación
-          </p>
-        </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-foreground mb-2">Informes de TFG</h1>
+        <p className="text-muted-foreground">Genera reportes personalizados sobre proyectos de graduación</p>
+      </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Panel de filtros */}
-          <aside className="lg:col-span-1">
+      {/* Filters */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Filtros de Reporte</CardTitle>
+          <CardDescription>Selecciona los criterios para generar el informe</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Empresa</Label>
+              <Select value={selectedEmpresa} onValueChange={setSelectedEmpresa}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas las empresas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las empresas</SelectItem>
+                  {empresas.map((empresa) => (
+                    <SelectItem key={empresa.id} value={empresa.id}>
+                      {empresa.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={selectedTipo} onValueChange={setSelectedTipo}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos los tipos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los tipos</SelectItem>
+                  <SelectItem value="TFG">TFG</SelectItem>
+                  <SelectItem value="PASANTIA">Pasantía</SelectItem>
+                  <SelectItem value="EMPLEO">Empleo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-end">
+              <Button onClick={handleGenerateReport} disabled={isLoading} className="w-full">
+                {isLoading ? "Generando..." : "Generar Preview"}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Results */}
+      {reportData && (
+        <>
+          {/* Stats Cards */}
+          <div className="grid gap-4 md:grid-cols-4 mb-6">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Filtros
-                </CardTitle>
-                <CardDescription>
-                  Personaliza tu informe
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total TFGs</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fecha-inicio">Fecha Inicio</Label>
-                  <Input
-                    id="fecha-inicio"
-                    type="date"
-                    value={filters.fechaInicio}
-                    onChange={(e) => setFilters({ ...filters, fechaInicio: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="fecha-fin">Fecha Fin</Label>
-                  <Input
-                    id="fecha-fin"
-                    type="date"
-                    value={filters.fechaFin}
-                    onChange={(e) => setFilters({ ...filters, fechaFin: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="empresa">Empresa</Label>
-                  <Select value={filters.empresa} onValueChange={(val) => setFilters({ ...filters, empresa: val })}>
-                    <SelectTrigger id="empresa">
-                      <SelectValue placeholder="Todas las empresas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las empresas</SelectItem>
-                      <SelectItem value="caa6a12e-b110-4616-b786-7f18fea2b443">IBM Test</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="estado">Estado</Label>
-                  <Select value={filters.estado} onValueChange={(val) => setFilters({ ...filters, estado: val })}>
-                    <SelectTrigger id="estado">
-                      <SelectValue placeholder="Todos los estados" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="OPEN">Activos</SelectItem>
-                      <SelectItem value="CLOSED">Cerrados</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Separator />
-
-                <Button 
-                  className="w-full" 
-                  onClick={handleGeneratePreview}
-                  disabled={isGenerating}
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  {isGenerating ? 'Generando...' : 'Generar Preview'}
-                </Button>
-
-                <div className="space-y-2">
-                  <Label>Descargar Informe</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => handleDownload('CSV')}
-                      disabled={isGenerating}
-                      size="sm"
-                    >
-                      <Download className="h-3 w-3 mr-1" />
-                      CSV
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => handleDownload('JSON')}
-                      disabled={isGenerating}
-                      size="sm"
-                    >
-                      <Download className="h-3 w-3 mr-1" />
-                      JSON
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={handleDownloadExcel}
-                      disabled={!previewData}
-                      size="sm"
-                    >
-                      <Download className="h-3 w-3 mr-1" />
-                      Excel
-                    </Button>
-                  </div>
-                </div>
+              <CardContent>
+                <div className="text-2xl font-bold">{reportData.total_tfgs}</div>
               </CardContent>
             </Card>
-          </aside>
 
-          {/* Panel principal */}
-          <div className="lg:col-span-2">
-            {!previewData ? (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Activos</CardTitle>
+                <TrendingUp className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{reportData.activos}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cerrados</CardTitle>
+                <XCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{reportData.cerrados}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Aprobados</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{reportData.aprobados}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tabs */}
+          <Tabs defaultValue="list" className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <TabsList>
+                <TabsTrigger value="list">Lista de TFGs</TabsTrigger>
+                <TabsTrigger value="charts">Gráficas</TabsTrigger>
+              </TabsList>
+
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownload("CSV")}>
+                  <Download className="h-4 w-4 mr-1" />
+                  CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleDownload("JSON")}>
+                  <Download className="h-4 w-4 mr-1" />
+                  JSON
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleDownload("XLSX")}>
+                  <Download className="h-4 w-4 mr-1" />
+                  Excel
+                </Button>
+              </div>
+            </div>
+
+            <TabsContent value="list">
               <Card>
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <FileText className="h-16 w-16 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No hay preview</h3>
-                  <p className="text-sm text-muted-foreground text-center">
-                    Configura los filtros y haz clic en "Generar Preview" para ver un resumen del informe
-                  </p>
+                <CardHeader>
+                  <CardTitle>Listado de TFGs ({reportData.tfgs?.length || 0})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {reportData.tfgs?.map((tfg) => (
+                      <div key={tfg.id} className="flex items-center justify-between border-b pb-4 last:border-0">
+                        <div className="flex-1">
+                          <h3 className="font-semibold">{tfg.title}</h3>
+                          <p className="text-sm text-muted-foreground">{tfg.company_name}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(tfg.created_at).toLocaleDateString("es-CR")}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Badge variant={tfg.status === "OPEN" ? "default" : "secondary"}>{tfg.status}</Badge>
+                          <Badge
+                            variant={
+                              tfg.approval_status === "APPROVED"
+                                ? "default"
+                                : tfg.approval_status === "PENDING"
+                                  ? "secondary"
+                                  : "destructive"
+                            }
+                          >
+                            {tfg.approval_status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
-            ) : (
-              <Tabs defaultValue="stats">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="stats">Estadísticas</TabsTrigger>
-                  <TabsTrigger value="list">Lista de TFGs</TabsTrigger>
-                  <TabsTrigger value="charts">Gráficas</TabsTrigger>
-                </TabsList>
+            </TabsContent>
 
-                <TabsContent value="stats" className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total TFGs</CardTitle>
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{previewData.estadisticas.total_tfgs}</div>
-                      </CardContent>
-                    </Card>
+            <TabsContent value="charts">
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Estado de TFGs</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={statusData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#8884d8">
+                          {statusData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
 
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Activos</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-green-600">
-                          {previewData.estadisticas.activos}
-                        </div>
-                      </CardContent>
-                    </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Estado de Aprobación</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={approvalData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {approvalData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
 
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Cerrados</CardTitle>
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-gray-600">
-                          {previewData.estadisticas.cerrados}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Por Empresa</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {Object.entries(previewData.estadisticas.por_empresa).map(([empresa, cantidad]: [string, any]) => (
-                          <div key={empresa} className="flex items-center justify-between p-2 border rounded">
-                            <div className="flex items-center gap-2">
-                              <Building2 className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{empresa}</span>
-                            </div>
-                            <Badge>{cantidad}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Por Modalidad</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {Object.entries(previewData.estadisticas.por_modalidad).map(([modalidad, cantidad]: [string, any]) => (
-                          <div key={modalidad} className="flex items-center justify-between p-2 border rounded">
-                            <span className="text-sm">{modalidad}</span>
-                            <Badge variant="outline">{cantidad}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="list">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Lista de TFGs ({previewData.tfgs.length})</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3 max-h-96 overflow-y-auto">
-                        {previewData.tfgs.slice(0, 20).map((tfg: any) => (
-                          <div key={tfg.id} className="p-3 border rounded-lg">
-                            <div className="flex items-start justify-between mb-2">
-                              <h4 className="font-medium">{tfg.title}</h4>
-                              <Badge variant={tfg.status === 'OPEN' ? 'default' : 'secondary'}>
-                                {tfg.status === 'OPEN' ? 'Activo' : 'Cerrado'}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Building2 className="h-3 w-3" />
-                                {tfg.COMPANY?.name || 'Sin empresa'}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {new Date(tfg.created_at).toLocaleDateString('es-CR')}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                        {previewData.tfgs.length > 20 && (
-                          <p className="text-center text-sm text-muted-foreground py-2">
-                            Y {previewData.tfgs.length - 20} más...
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="charts" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5" />
-                        Distribución por Empresa
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={Object.entries(previewData.estadisticas.por_empresa).map(([nombre, cantidad]) => ({
-                          nombre,
-                          cantidad
-                        }))}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="nombre" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="cantidad" fill="#667eea" name="TFGs" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Estado de TFGs</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={[
-                              { nombre: 'Activos', valor: previewData.estadisticas.activos },
-                              { nombre: 'Cerrados', valor: previewData.estadisticas.cerrados }
-                            ]}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ nombre, valor, percent }) => `${nombre}: ${valor} (${(percent * 100).toFixed(0)}%)`}
-                            outerRadius={100}
-                            fill="#8884d8"
-                            dataKey="valor"
-                          >
-                            {[
-                              { nombre: 'Activos', valor: previewData.estadisticas.activos },
-                              { nombre: 'Cerrados', valor: previewData.estadisticas.cerrados }
-                            ].map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            )}
-          </div>
-        </div>
-      </div>
+      {!reportData && !isLoading && (
+        <Card>
+          <CardContent className="py-16 text-center">
+            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No hay datos</h3>
+            <p className="text-muted-foreground">Selecciona filtros y genera un reporte para visualizar los datos</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

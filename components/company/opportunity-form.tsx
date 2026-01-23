@@ -14,6 +14,7 @@ import { UploadFlyer } from "@/components/company/upload-flyer"
 import { generarFlyer } from "@/lib/services/persona5-backend"
 import { supabase } from "@/lib/supabase"
 import type { OpportunityType } from "@/lib/types"
+import { getCurrentCompanyId } from '@/lib/auth/get-current-user'
 
 interface OpportunityFormProps {
   initialData?: {
@@ -99,7 +100,7 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
         
       } else {
         // Crear nueva oportunidad usando fetch directo
-        const empresaId = 'caa6a12e-b110-4616-b786-7f18fea2b443'
+        const empresaId = await getCurrentCompanyId()
 
         const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/OPPORTUNITY`, {
           method: 'POST',
