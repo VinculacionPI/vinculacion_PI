@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { StatsCard } from "@/components/shared/stats-card"
 import { LoadingState } from "@/components/shared/loading-state"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -8,7 +8,7 @@ import { Building2, Briefcase, Users, CheckCircle, Clock } from "lucide-react"
 import { CompanyApprovalsTable } from "@/components/admin/company-approvals-table"
 import { OpportunityApprovalsTable } from "@/components/admin/opportunity-approvals-table"
 
-interface AdminStats {
+type AdminStats = {
   totalCompanies: number
   pendingCompanies: number
   totalOpportunities: number
@@ -22,21 +22,43 @@ export default function AdminDashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    const fetchAdminStats = async () => {
+      setIsLoading(true)
+      try {
+        const response = await fetch("/api/admin/stats", { cache: "no-store" })
+        const data = await response.json().catch(() => null)
+
+        if (!response.ok || !data) {
+          console.error("Error fetching admin stats:", data)
+          setStats({
+            totalCompanies: 0,
+            pendingCompanies: 0,
+            totalOpportunities: 0,
+            pendingOpportunities: 0,
+            totalUsers: 0,
+            activeOpportunities: 0,
+          })
+          return
+        }
+
+        setStats(data)
+      } catch (error) {
+        console.error("Error fetching admin stats:", error)
+        setStats({
+          totalCompanies: 0,
+          pendingCompanies: 0,
+          totalOpportunities: 0,
+          pendingOpportunities: 0,
+          totalUsers: 0,
+          activeOpportunities: 0,
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
     fetchAdminStats()
   }, [])
-
-  const fetchAdminStats = async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch("/api/admin/stats")
-      const data = await response.json()
-      setStats(data)
-    } catch (error) {
-      console.error("[v0] Error fetching admin stats:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   if (isLoading || !stats) {
     return (
@@ -53,7 +75,6 @@ export default function AdminDashboardPage() {
         <p className="text-muted-foreground">Gestiona aprobaciones y supervisa la plataforma</p>
       </div>
 
-      {/* Stats Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
         <StatsCard
           title="Empresas Registradas"
@@ -87,7 +108,6 @@ export default function AdminDashboardPage() {
         />
       </div>
 
-      {/* Approval Management */}
       <Tabs defaultValue="companies" className="space-y-6">
         <TabsList>
           <TabsTrigger value="companies">
