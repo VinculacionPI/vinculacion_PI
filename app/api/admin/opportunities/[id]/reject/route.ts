@@ -55,4 +55,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   })
 
   return NextResponse.json({ message: "Oportunidad rechazada", opportunity: data }, { status: 200 })
+
 }

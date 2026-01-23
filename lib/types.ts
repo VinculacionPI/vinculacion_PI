@@ -6,11 +6,22 @@ export type OpportunityStatus = "pending" | "approved" | "rejected" | "active" |
 
 export interface User {
   id: string
-  name: string
   email: string
   role: UserRole
-  createdAt: string
+  status: string  
+  created_at: string  
+  name: string
+  cedula: string  // Nuevo campo
+  phone: string  // Nuevo campo
+  personalEmail?: string | null  // Nuevo campo
+  carnet?: string  // Nuevo campo
+  semester?: string  // Nuevo campo
+  address?: string  // Nuevo campo
+  // Otros campos opcionales
+  password?: string
+  confirmPassw?: string
 }
+
 
 export interface Opportunity {
   id: string
