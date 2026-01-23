@@ -1,44 +1,67 @@
 "use client"
 
-import Link from "next/link"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRouter } from "next/navigation"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Building2, MapPin, Clock, Bookmark, ExternalLink } from "lucide-react"
-
-export type OpportunityType = "internship" | "graduation-project" | "job"
 
 export interface Opportunity {
   id: string
   title: string
   company: string
   location: string
-  type: OpportunityType
+  type: "internship" | "graduation-project" | "job"
   description: string
   postedAt: string
-  salary?: string
-  requirements?: string[]
+  lifecycle_status?: string | null
 }
 
 interface OpportunityCardProps {
   opportunity: Opportunity
-  onFavorite?: (id: string) => void
-  isFavorite?: boolean
+
+  // AHORA ES INTERÉS
+  isInterested: boolean
+  onInterestToggle: (id: string, next: boolean) => void
 }
 
-const typeLabels: Record<OpportunityType, string> = {
-  internship: "Práctica",
-  "graduation-project": "Proyecto Graduación",
-  job: "Empleo",
-}
+export function OpportunityCard({
+  opportunity,
+  isInterested,
+  onInterestToggle,
+}: OpportunityCardProps) {
+  const router = useRouter()
 
-const typeColors: Record<OpportunityType, string> = {
-  internship: "bg-chart-2 text-chart-2 text-white",
-  "graduation-project": "bg-chart-3 text-chart-3 text-white",
-  job: "bg-primary text-primary text-white",
-}
+  // ✅ no bloquea si no viene lifecycle_status
+  const isActive = (opportunity.lifecycle_status ?? "ACTIVE").toUpperCase() === "ACTIVE"
 
-export function OpportunityCard({ opportunity, onFavorite, isFavorite = false }: OpportunityCardProps) {
+  const handleToggle = (e: React.MouseEvent) => {
+    // evita cualquier click bubbling raro
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!isActive) {
+      alert("Esta publicación no está activa.")
+      return
+    }
+
+    const ok = window.confirm(
+      isInterested
+        ? "¿Confirmas que deseas retirar tu manifestación de interés?"
+        : "¿Confirmas que deseas manifestar interés en esta publicación?"
+    )
+    if (!ok) return
+
+    onInterestToggle(opportunity.id, !isInterested)
+  }
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader>
@@ -50,25 +73,34 @@ export function OpportunityCard({ opportunity, onFavorite, isFavorite = false }:
               {opportunity.company}
             </CardDescription>
           </div>
-          {onFavorite && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onFavorite(opportunity.id)}
-              className={isFavorite ? "text-accent" : "text-muted-foreground"}
-            >
-              <Bookmark className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
-              <span className="sr-only">{isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}</span>
-            </Button>
-          )}
+
+          {/* ⭐ BOOKMARK = INTERÉS */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleToggle}
+            disabled={!isActive}
+            // ✅ área clickeable sólida + feedback visual
+            className={[
+              "h-9 w-9",
+              isInterested ? "text-accent" : "text-muted-foreground",
+              !isActive ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+            ].join(" ")}
+            type="button"
+            title={isActive ? (isInterested ? "Retirar interés" : "Manifestar interés") : "Publicación no activa"}
+          >
+            {/* ✅ el SVG no debe capturar clicks */}
+            <Bookmark className={`h-4 w-4 pointer-events-none ${isInterested ? "fill-current" : ""}`} />
+            <span className="sr-only">
+              {isInterested ? "Retirar interés" : "Manifestar interés"}
+            </span>
+          </Button>
         </div>
       </CardHeader>
+
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">
-          <Badge variant="secondary" className={typeColors[opportunity.type]}>
-            {typeLabels[opportunity.type]}
-          </Badge>
-          {opportunity.salary && <Badge variant="outline">{opportunity.salary}</Badge>}
+          <Badge variant="secondary">{opportunity.type}</Badge>
         </div>
 
         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
@@ -82,15 +114,19 @@ export function OpportunityCard({ opportunity, onFavorite, isFavorite = false }:
           </div>
         </div>
 
-        <p className="text-sm text-foreground line-clamp-3">{opportunity.description}</p>
+        <p className="text-sm line-clamp-3">{opportunity.description}</p>
       </CardContent>
+
       <CardFooter>
-        <Link href={`/opportunities/${opportunity.id}`} className="w-full">
-          <Button variant="outline" className="w-full bg-transparent">
-            Ver Detalles
-            <ExternalLink className="ml-2 h-4 w-4" />
-          </Button>
-        </Link>
+        <Button
+          variant="outline"
+          className="w-full bg-transparent"
+          onClick={() => router.push(`/dashboard/student/opportunities/${opportunity.id}`)}
+          type="button"
+        >
+          Ver Detalles
+          <ExternalLink className="ml-2 h-4 w-4" />
+        </Button>
       </CardFooter>
     </Card>
   )
