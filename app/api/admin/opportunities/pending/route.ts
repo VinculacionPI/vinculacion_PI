@@ -1,39 +1,59 @@
 import { NextResponse } from "next/server"
+import { createServerSupabase } from "@/lib/supabase"
 
-const mockPendingOpportunities = [
-  {
-    id: "pending-1",
-    title: "Desarrollador Backend Node.js",
-    company: "Tech Innovations CR",
-    companyId: "1",
-    location: "San José",
-    type: "job",
-    status: "pending",
-    description: "Buscamos desarrollador backend con experiencia en Node.js y bases de datos NoSQL.",
-    salary: "₡1,800,000 - ₡2,500,000",
-    postedAt: "Hace 2 días",
-    requirements: ["3+ años de experiencia", "Node.js y Express", "MongoDB o similar"],
-  },
-  {
-    id: "pending-2",
-    title: "Práctica en Diseño UX/UI",
-    company: "Digital Marketing Solutions",
-    companyId: "2",
-    location: "Remoto",
-    type: "internship",
-    status: "pending",
-    description: "Oportunidad de práctica en diseño de experiencias de usuario y interfaces.",
-    postedAt: "Hace 1 día",
-    requirements: ["Conocimientos en Figma", "Portafolio de diseño", "Estudiante activo"],
-  },
-]
+const TFG_TYPE = "graduation-project"
 
 export async function GET() {
-  try {
-    // TODO: Replace with actual database query
-    return NextResponse.json(mockPendingOpportunities)
-  } catch (error) {
-    console.error("[v0] Error fetching pending opportunities:", error)
-    return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 })
+  const supabase = createServerSupabase()
+
+  const { data, error } = await supabase
+    .from("OPPORTUNITY")
+    .select(
+      `
+      id,
+      title,
+      type,
+      description,
+      created_at,
+      approval_status,
+      lifecycle_status,
+      mode,
+      company_id,
+      COMPANY:company_id (
+        id,
+        name
+      )
+    `
+    )
+    .eq("approval_status", "PENDING")
+    .eq("type", TFG_TYPE)
+    .order("created_at", { ascending: true })
+
+  if (error) {
+    console.error("ERROR GET PENDING OPPORTUNITIES", {
+      message: error.message,
+      code: (error as any).code,
+      details: (error as any).details,
+      hint: (error as any).hint,
+    })
+    return NextResponse.json({ message: error.message }, { status: 500 })
   }
+
+  // Mapeo al shape que tu tabla espera
+  const mapped =
+    (data ?? []).map((o: any) => ({
+      id: o.id,
+      title: o.title,
+      company: o.COMPANY?.name ?? "No especificada",
+      companyId: o.company_id,
+      location: o.mode ?? "—",
+      type: o.type,
+      status: "pending",
+      description: o.description ?? "",
+      postedAt: o.created_at, 
+      requirements: [], 
+      created_at: o.created_at, 
+    })) ?? []
+
+  return NextResponse.json(mapped)
 }
