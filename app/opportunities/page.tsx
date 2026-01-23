@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 import { Briefcase, Search } from "lucide-react"
 import Link from "next/link"
+import { explorarOportunidades } from "@/lib/services/persona5-backend"
 
 const ITEMS_PER_PAGE = 9
 
@@ -16,6 +17,8 @@ export default function OpportunitiesPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalResults, setTotalResults] = useState(0)
   const [filters, setFilters] = useState<OpportunityFilters>({
     search: "",
     types: [],
@@ -24,40 +27,61 @@ export default function OpportunitiesPage() {
 
   useEffect(() => {
     fetchOpportunities()
-  }, [])
+  }, [currentPage, filters])
 
   const fetchOpportunities = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch("/api/opportunities")
-      const data = await response.json()
-      setOpportunities(data)
+      // Mapear tipos del frontend al backend
+      const tiposMapeados = filters.types.map((t: string) => {
+        if (t === 'internship') return 'PASANTIA'
+        if (t === 'graduation-project') return 'TFG'
+        if (t === 'job') return 'EMPLEO'
+        return t
+      })
+
+      // Llamar a tu backend real (Persona 5)
+      const response = await explorarOportunidades({
+        busqueda: filters.search,
+        tipo: tiposMapeados,
+        pagina: currentPage,
+        limite: ITEMS_PER_PAGE,
+      })
+
+      if (response.success) {
+        // Transformar datos del backend al formato del frontend
+        const transformedData = response.data.map((opp: any) => ({
+          id: opp.id,
+          title: opp.title,
+          description: opp.description,
+          company: opp.COMPANY?.name || 'Empresa',
+          companyId: opp.company_id,
+          location: 'San José', // Mock - agregar a BD si necesario
+          type: opp.type === 'TFG' ? 'graduation-project' : 
+                opp.type === 'PASANTIA' ? 'internship' : 'job',
+          status: opp.status === 'OPEN' ? 'active' : 'inactive',
+          postedAt: new Date(opp.created_at).toLocaleDateString('es-CR'),
+        }))
+
+        setOpportunities(transformedData)
+        setTotalPages(response.paginacion.total_paginas || 1)
+        setTotalResults(response.paginacion.total_resultados)
+      }
     } catch (error) {
-      console.error("[v0] Error fetching opportunities:", error)
+      console.error("[persona5] Error fetching opportunities:", error)
+      
+      // FALLBACK: Si falla, usar API original de los compañeros
+      try {
+        const response = await fetch("/api/opportunities")
+        const data = await response.json()
+        setOpportunities(data)
+      } catch (fallbackError) {
+        console.error("[v0] Fallback también falló:", fallbackError)
+      }
     } finally {
       setIsLoading(false)
     }
   }
-
-  const filteredOpportunities = opportunities.filter((opp) => {
-    const matchesSearch =
-      !filters.search ||
-      opp.title.toLowerCase().includes(filters.search.toLowerCase()) ||
-      opp.company.toLowerCase().includes(filters.search.toLowerCase()) ||
-      opp.description.toLowerCase().includes(filters.search.toLowerCase())
-
-    const matchesType = filters.types.length === 0 || filters.types.includes(opp.type)
-
-    const matchesLocation = filters.locations.length === 0 || filters.locations.includes(opp.location)
-
-    return matchesSearch && matchesType && matchesLocation
-  })
-
-  const totalPages = Math.ceil(filteredOpportunities.length / ITEMS_PER_PAGE)
-  const paginatedOpportunities = filteredOpportunities.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
-  )
 
   return (
     <div className="min-h-screen bg-background">
@@ -97,12 +121,14 @@ export default function OpportunitiesPage() {
           {/* Opportunities Grid */}
           <div className="lg:col-span-3">
             <div className="mb-6 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">{filteredOpportunities.length} oportunidades encontradas</p>
+              <p className="text-sm text-muted-foreground">
+                {totalResults > 0 ? `${totalResults} oportunidades encontradas` : `${opportunities.length} oportunidades encontradas`}
+              </p>
             </div>
 
             {isLoading ? (
               <LoadingState message="Cargando oportunidades..." />
-            ) : filteredOpportunities.length === 0 ? (
+            ) : opportunities.length === 0 ? (
               <EmptyState
                 icon={Search}
                 title="No se encontraron oportunidades"
@@ -111,7 +137,7 @@ export default function OpportunitiesPage() {
             ) : (
               <>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
-                  {paginatedOpportunities.map((opportunity) => (
+                  {opportunities.map((opportunity) => (
                     <OpportunityCard key={opportunity.id} opportunity={opportunity} />
                   ))}
                 </div>

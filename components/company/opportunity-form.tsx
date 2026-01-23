@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -10,7 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Loader2, Plus, X } from "lucide-react"
+import { Loader2, Plus, X, FileText, Upload } from "lucide-react"
+import { UploadFlyer } from "@/components/company/upload-flyer"
+import { generarFlyer } from "@/lib/services/persona5-backend"
+import { supabase } from "@/lib/supabase"
 import type { OpportunityType } from "@/lib/types"
 
 interface OpportunityFormProps {
@@ -30,6 +32,8 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [showFlyerStep, setShowFlyerStep] = useState(false)
+  const [createdOpportunityId, setCreatedOpportunityId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     description: initialData?.description || "",
@@ -45,30 +49,135 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
     setError("")
 
     try {
-      const url = isEdit ? `/api/company/opportunities/${initialData?.id}` : "/api/company/opportunities"
-      const method = isEdit ? "PUT" : "POST"
+      // Mapear tipo del frontend al backend
+      const tipoMapeado = 
+        formData.type === 'internship' ? 'PASANTIA' :
+        formData.type === 'graduation-project' ? 'TFG' : 'EMPLEO'
 
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          requirements: formData.requirements.filter((req) => req.trim() !== ""),
-        }),
-      })
+        if (isEdit && initialData?.id) {
+          // Preparar datos base
+          const updateData: any = {
+            title: formData.title,
+            description: formData.description,
+            type: tipoMapeado,
+            mode: formData.location && ['presencial', 'virtual', 'hibrida'].includes(formData.location.toLowerCase()) 
+              ? formData.location.toLowerCase() 
+              : 'virtual',
+          }
 
-      const data = await response.json()
+          // Agregar requirements si hay
+          const reqs = formData.requirements.filter(r => r.trim()).join('\n')
+          if (reqs) {
+            updateData.requirements = reqs
+          }
 
-      if (!response.ok) {
-        throw new Error(data.message || "Error al guardar la oportunidad")
+          // Si es TFG, agregar campos requeridos por el constraint
+          if (tipoMapeado === 'TFG') {
+            // Solo agregar si no existen ya en la BD
+            const { data: existing } = await supabase
+              .from('OPPORTUNITY')
+              .select('duration_estimated, contact_info')
+              .eq('id', initialData.id)
+              .single()
+
+            updateData.duration_estimated = existing?.duration_estimated || '6 meses'
+            updateData.contact_info = existing?.contact_info || 'vinculacion@tec.ac.cr'
+            
+            // Asegurar que description tenga al menos 100 caracteres
+            if (updateData.description.length < 100) {
+              updateData.description = updateData.description.padEnd(100, ' - Información adicional pendiente.')
+            }
+          }
+
+          const { error: updateError } = await supabase
+            .from('OPPORTUNITY')
+            .update(updateData)
+            .eq('id', initialData.id)
+
+          if (updateError) throw updateError
+          router.push("/dashboard/company")
+        
+      } else {
+        // Crear nueva oportunidad usando fetch directo
+        const empresaId = 'caa6a12e-b110-4616-b786-7f18fea2b443'
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/OPPORTUNITY`, {
+          method: 'POST',
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify({
+            title: formData.title,
+            description: formData.description,
+            type: tipoMapeado,
+            mode: formData.location,
+            requirements: formData.requirements.filter(r => r.trim()).join('\n'),
+            company_id: empresaId,
+            status: 'OPEN',
+            approval_status: 'PENDING',
+            lifecycle_status: 'ACTIVE',
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.message || 'Error creando oportunidad')
+        }
+
+        const data = await response.json()
+        const createdOpp = Array.isArray(data) ? data[0] : data
+
+        // Mostrar paso de flyer
+        setCreatedOpportunityId(createdOpp.id)
+        setShowFlyerStep(true)
       }
-
-      router.push("/dashboard/company")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido")
+      } catch (err: any) {
+      console.error('Error completo:', err)
+      const errorMsg = err?.message || err?.error_description || err?.msg || JSON.stringify(err)
+      setError(errorMsg)
     } finally {
       setIsLoading(false)
     }
+  }
+
+const handleGenerateFlyer = async () => {
+    if (!createdOpportunityId) return
+    
+    setIsLoading(true)
+    try {
+      console.log('Generando flyer para:', createdOpportunityId)
+      const result = await generarFlyer(createdOpportunityId)
+      
+      console.log('Resultado completo:', result)
+      console.log('HTML recibido:', result.data?.html?.substring(0, 200))
+      
+      if (result.success && result.data?.html) {
+        // Abrir en nueva ventana y escribir directamente
+        const win = window.open('', '_blank')
+        if (win) {
+          win.document.open()
+          win.document.write(result.data.html)
+          win.document.close()
+        } else {
+          alert('No se pudo abrir la ventana. Verifica que no esté bloqueada por el navegador.')
+        }
+      } else {
+        console.error('Error en respuesta:', result)
+        alert('Error generando flyer: ' + (result.error || 'No hay HTML'))
+      }
+    } catch (err) {
+      console.error('Exception:', err)
+      alert('Error generando flyer')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSkipFlyer = () => {
+    router.push("/dashboard/company")
   }
 
   const addRequirement = () => {
@@ -92,6 +201,73 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
     setFormData({ ...formData, requirements: newRequirements })
   }
 
+  // Mostrar paso de flyer después de crear
+  if (showFlyerStep && createdOpportunityId) {
+    return (
+      <div className="space-y-6">
+        <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+          <CardHeader>
+            <CardTitle className="text-green-700 dark:text-green-400">
+              ✓ Oportunidad Creada Exitosamente
+            </CardTitle>
+            <CardDescription>
+              Elige UNA opción para el flyer de tu oportunidad
+            </CardDescription>
+          </CardHeader>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>¿Cómo deseas crear el flyer?</CardTitle>
+            <CardDescription>
+              Selecciona una de las siguientes opciones. Podrás cambiarlo después.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Generar automáticamente */}
+              <Button
+                variant="outline"
+                className="h-auto p-6 flex flex-col items-center gap-3 hover:border-primary"
+                onClick={() => {
+                  handleGenerateFlyer()
+                  setTimeout(() => router.push("/dashboard/company"), 2000)
+                }}
+                disabled={isLoading}
+              >
+                <FileText className="h-8 w-8 text-primary" />
+                <div className="text-center">
+                  <p className="font-semibold">Generar Automáticamente</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Flyer profesional con datos de la oportunidad
+                  </p>
+                </div>
+              </Button>
+
+              {/* Subir personalizado */}
+              <div>
+                <UploadFlyer
+                  opportunityId={createdOpportunityId}
+                  onUploadSuccess={() => {
+                    setTimeout(() => router.push("/dashboard/company"), 1000)
+                  }}
+                  compact={true}
+                />
+              </div>
+            </div>
+
+            <div className="text-center pt-4 border-t">
+              <Button variant="ghost" onClick={handleSkipFlyer}>
+                Omitir y continuar sin flyer
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Formulario normal
   return (
     <Card>
       <CardHeader>

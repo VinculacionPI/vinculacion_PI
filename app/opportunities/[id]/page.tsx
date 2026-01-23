@@ -1,3 +1,6 @@
+"use client"
+
+import { use, useEffect, useState } from "react"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -5,6 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { DashboardHeader } from "@/components/shared/dashboard-header"
+import { FlyerButton } from "@/components/opportunities/flyer-button"
+import { LoadingState } from "@/components/shared/loading-state"
+import { supabase } from "@/lib/supabase"
 import {
   ArrowLeft,
   Building2,
@@ -17,49 +23,76 @@ import {
   ExternalLink,
 } from "lucide-react"
 
-async function getOpportunity(id: string) {
-  // TODO: Replace with actual API call
-  // Simulated API response
-  return {
-    id,
-    title: "Desarrollador Full Stack",
-    company: "Tech Solutions CR",
-    companyLogo: "/generic-company-logo.png",
-    location: "San José",
-    type: "job",
-    status: "active",
-    description:
-      "Buscamos un desarrollador full stack con experiencia en React y Node.js para unirse a nuestro equipo de desarrollo. Trabajarás en proyectos innovadores para clientes nacionales e internacionales.",
-    requirements: [
-      "Experiencia mínima de 2 años en desarrollo web",
-      "Conocimientos sólidos en React y Node.js",
-      "Experiencia con bases de datos SQL y NoSQL",
-      "Conocimientos en Git y metodologías ágiles",
-      "Inglés intermedio-avanzado",
-    ],
-    responsibilities: [
-      "Desarrollar y mantener aplicaciones web full stack",
-      "Colaborar con el equipo de diseño y producto",
-      "Participar en revisiones de código y mejoras continuas",
-      "Documentar código y procesos técnicos",
-    ],
-    benefits: [
-      "Salario competitivo según experiencia",
-      "Seguro médico privado",
-      "Oportunidades de crecimiento profesional",
-      "Ambiente de trabajo flexible",
-      "Capacitación continua",
-    ],
-    salary: "₡1,200,000 - ₡1,800,000",
-    postedAt: "Hace 3 días",
-    expiresAt: "2024-02-15",
-    contactEmail: "rrhh@techsolutions.cr",
-    website: "https://techsolutions.cr",
-  }
-}
+export default function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const [opportunity, setOpportunity] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-export default async function OpportunityDetailPage({ params }: { params: { id: string } }) {
-  const opportunity = await getOpportunity(params.id)
+  useEffect(() => {
+    async function loadOpportunity() {
+      try {
+        const { data, error } = await supabase
+          .from('OPPORTUNITY')
+          .select(`
+            *,
+            COMPANY (
+              name,
+              email,
+              sector,
+              logo_path
+            )
+          `)
+          .eq('id', id)
+          .single()
+        
+        if (error || !data) {
+          console.error('Error obteniendo oportunidad:', error)
+          setOpportunity(null)
+          return
+        }
+        
+        setOpportunity({
+                  id: data.id,
+                  title: data.title,
+                  company: data.COMPANY?.name || 'Empresa',
+                  companyLogo: data.COMPANY?.logo_path || '/generic-company-logo.png',
+                  location: data.mode || 'No especificado',
+                  type: data.type === 'TFG' ? 'graduation-project' : 
+                        data.type === 'PASANTIA' ? 'internship' : 'job',
+                  status: data.status === 'OPEN' ? 'active' : 'inactive',
+                  description: data.description || 'Sin descripción',
+                  requirements: data.requirements?.split('\n').filter(Boolean) || [],
+                  responsibilities: [],
+                  benefits: [],
+                  salary: null,
+                  postedAt: new Date(data.created_at).toLocaleDateString('es-CR'),
+                  expiresAt: 'No especificado',
+                  contactEmail: data.contact_info || data.COMPANY?.email || '',
+                  website: null,
+                  flyer_url: data.flyer_url || null,
+                })
+        import('@/lib/services/persona5-backend').then(({ registrarVisualizacion }) => {
+          registrarVisualizacion(id).catch(err => console.log('Error registrando visualización:', err))
+        })
+      } catch (err) {
+        console.error('Error cargando oportunidad:', err)
+        setOpportunity(null)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadOpportunity()
+  }, [id])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DashboardHeader />
+        <LoadingState message="Cargando oportunidad..." />
+      </div>
+    )
+  }
 
   if (!opportunity) {
     notFound()
@@ -84,7 +117,6 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
         </Link>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
@@ -131,42 +163,10 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
                   <div>
                     <h3 className="text-lg font-semibold mb-3 text-foreground">Requisitos</h3>
                     <ul className="space-y-2">
-                      {opportunity.requirements.map((req, index) => (
+                      {opportunity.requirements.map((req: string, index: number) => (
                         <li key={index} className="flex items-start gap-2">
                           <CheckCircle2 className="h-5 w-5 text-accent mt-0.5 flex-shrink-0" />
                           <span className="text-muted-foreground">{req}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <Separator />
-
-                {opportunity.responsibilities && opportunity.responsibilities.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3 text-foreground">Responsabilidades</h3>
-                    <ul className="space-y-2">
-                      {opportunity.responsibilities.map((resp, index) => (
-                        <li key={index} className="flex items-start gap-2">
-                          <CheckCircle2 className="h-5 w-5 text-chart-3 mt-0.5 flex-shrink-0" />
-                          <span className="text-muted-foreground">{resp}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <Separator />
-
-                {opportunity.benefits && opportunity.benefits.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3 text-foreground">Beneficios</h3>
-                    <ul className="space-y-2">
-                      {opportunity.benefits.map((benefit, index) => (
-                        <li key={index} className="flex items-start gap-2">
-                          <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                          <span className="text-muted-foreground">{benefit}</span>
                         </li>
                       ))}
                     </ul>
@@ -176,7 +176,6 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
             </Card>
           </div>
 
-          {/* Sidebar */}
           <div className="lg:col-span-1">
             <Card className="sticky top-24">
               <CardHeader>
@@ -207,19 +206,12 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
                     </div>
                   </div>
 
-                  {opportunity.website && (
+                  {opportunity.contactEmail && (
                     <div className="flex items-center gap-2 text-sm">
                       <ExternalLink className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <p className="font-medium text-foreground">Sitio web</p>
-                        <a
-                          href={opportunity.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          Visitar
-                        </a>
+                        <p className="font-medium text-foreground">Contacto</p>
+                        <p className="text-muted-foreground">{opportunity.contactEmail}</p>
                       </div>
                     </div>
                   )}
@@ -231,6 +223,11 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
                   <Briefcase className="h-4 w-4 mr-2" />
                   Guardar para después
                 </Button>
+
+                      <FlyerButton 
+                  opportunityId={id} 
+                  currentFlyerUrl={opportunity.flyer_url}
+                />
               </CardContent>
             </Card>
           </div>
