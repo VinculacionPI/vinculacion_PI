@@ -5,8 +5,9 @@ function isDev() {
   return process.env.NODE_ENV !== "production"
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const supabase = createServerSupabase()
+
   const { id } = await ctx.params
 
   const { data: auth } = await supabase.auth.getUser()
@@ -19,9 +20,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data, error } = await supabase
     .from("OPPORTUNITY")
-    .update({ approval_status: "APPROVED" })
+    .update({
+      approval_status: "APPROVED",
+      rejection_reason: null,
+      lifecycle_status: "ACTIVE",
+    })
     .eq("id", id)
-    .select("id,title,approval_status,company_id,created_at")
+    .select("id,title,approval_status,company_id,created_at,lifecycle_status")
     .single()
 
   if (error || !data) {
