@@ -2,20 +2,20 @@
 
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
 import { DashboardHeader } from "@/components/shared/dashboard-header"
 import { supabase } from "@/lib/supabase"
 
 export default function CompanyDashboardLayout({ children }: { children: ReactNode }) {
-  const searchParams = useSearchParams()
   const [companyName, setCompanyName] = useState("Empresa")
 
   useEffect(() => {
-    const empresaId = searchParams.get('empresa_id')
-    if (empresaId) {
-      loadCompanyName(empresaId)
+    if (typeof window !== 'undefined') {
+      const empresaId = new URLSearchParams(window.location.search).get('empresa_id')
+      if (empresaId) {
+        loadCompanyName(empresaId)
+      }
     }
-  }, [searchParams])
+  }, [])
 
   const loadCompanyName = async (empresaId: string) => {
     try {
