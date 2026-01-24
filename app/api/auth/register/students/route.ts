@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
     const userData = {
       id: validatedData.user_id,
       email: validatedData.email.toLowerCase(),
-      role: "student",
-      status: "active",
+      role: "STUDENT",
+      status: "ACTIVE",
       name: validatedData.name.trim(),
       cedula: validatedData.cedula,
       phone: validatedData.phone,

@@ -132,7 +132,6 @@ export default function StudentDashboardPage() {
       if (sessionError) throw sessionError
 
       if (!session) {
-        router.push("/login")
         return
       }
 
@@ -369,7 +368,11 @@ export default function StudentDashboardPage() {
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut()
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+
       router.push("/login")
     } catch (error) {
       console.error("Error al cerrar sesión:", error)

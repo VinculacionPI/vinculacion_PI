@@ -1,24 +1,49 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase/client"
 import Link from "next/link"
 import { LoginForm } from "@/components/auth/login-form"
-import { Briefcase } from "lucide-react"
+import { Briefcase, Loader2 } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
+  const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
-    // Verificar si ya hay una sesión activa
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Redirigir al dashboard si hay sesión activa
-        router.replace("/dashboard/student")
+    // Check if user is already authenticated
+    const checkAuth = async () => {
+      try {
+        const response = await fetch("/api/profile")
+        
+        if (response.ok) {
+          const data = await response.json()
+          // User is authenticated, redirect to their dashboard
+          if (data.role) {
+            router.push(`/dashboard/${data.role}`)
+            // Keep showing loader during redirect
+            return
+          }
+        }
+        // If response is not ok (401), user is not authenticated
+        setIsChecking(false)
+      } catch (error) {
+        // If error, assume not authenticated
+        console.error("Auth check error:", error)
+        setIsChecking(false)
       }
-    })
+    }
+
+    checkAuth()
   }, [router])
+
+  if (isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted px-4">

@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -40,22 +39,18 @@ export default function StudentProfilePage() {
       setLoading(true)
       setError("")
 
-      const { data: { session }, error: sessErr } = await supabase.auth.getSession()
-      if (sessErr) throw sessErr
-
-      if (!session) {
-        router.replace("/login")
-        return
+      const response = await fetch("/api/profile")
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.replace("/login")
+          return
+        }
+        throw new Error("Error al cargar perfil")
       }
 
-      const { data, error } = await supabase
-        .from("USERS")
-        .select("*")
-        .eq("id", session.user.id)
-        .single()
-
-      if (error) throw error
-      setProfile(data as any)
+      const data = await response.json()
+      setProfile(data as StudentProfile)
     } catch (err: any) {
       setError(err?.message ?? "Error cargando perfil")
     } finally {

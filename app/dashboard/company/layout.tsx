@@ -1,37 +1,31 @@
-"use client"
-
 import type { ReactNode } from "react"
-import { useEffect, useState } from "react"
 import { DashboardHeader } from "@/components/shared/dashboard-header"
-import { supabase } from "@/lib/supabase"
+import { createServerSupabase } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
 
-export default function CompanyDashboardLayout({ children }: { children: ReactNode }) {
-  const [companyName, setCompanyName] = useState("Empresa")
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const empresaId = new URLSearchParams(window.location.search).get('empresa_id')
-      if (empresaId) {
-        loadCompanyName(empresaId)
-      }
-    }
-  }, [])
-
-  const loadCompanyName = async (empresaId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('COMPANY')
-        .select('name')
-        .eq('id', empresaId)
-        .single()
-
-      if (data) {
-        setCompanyName(data.name)
-      }
-    } catch (err) {
-      console.error('Error cargando empresa:', err)
-    }
+export default async function CompanyDashboardLayout({ children }: { children: ReactNode }) {
+  const supabase = await createServerSupabase()
+  
+  // Obtener el usuario autenticado
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  
+  if (authError || !user) {
+    redirect("/login")
   }
+
+  // Obtener datos adicionales del usuario desde la tabla users
+  const { data: userData } = await supabase
+    .from("USERS")
+    .select("name, email, role")
+    .eq("id", user.id)
+    .single()
+
+  // Verificar que el usuario tenga el rol correcto
+  if (userData?.role !== "company") {
+    redirect(`/dashboard/${userData?.role.toLowerCase() || "student"}`)
+  }
+
+  const companyName = userData?.name || userData?.email || "Empresa"
 
   return (
     <div className="min-h-screen bg-background">

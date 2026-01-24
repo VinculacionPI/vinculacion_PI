@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,21 +47,17 @@ export default function EditProfilePage() {
       setLoading(true)
       setError("")
 
-      const { data: { session }, error: sessErr } = await supabase.auth.getSession()
-      if (sessErr) throw sessErr
-
-      if (!session) {
-        router.replace("/login")
-        return
+      const response = await fetch("/api/profile")
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.replace("/login")
+          return
+        }
+        throw new Error("Error al cargar perfil")
       }
 
-      const { data, error } = await supabase
-        .from("USERS")
-        .select("*")
-        .eq("id", session.user.id)
-        .single()
-
-      if (error) throw error
+      const data = await response.json()
 
       const personalEmail = data.personalEmail ?? ""
       const phone = data.phone ?? ""
@@ -92,13 +87,6 @@ export default function EditProfilePage() {
     setSuccess("")
 
     try {
-      const { data: { session }, error: sessErr } = await supabase.auth.getSession()
-      if (sessErr) throw sessErr
-      if (!session) {
-        router.replace("/login")
-        return
-      }
-
       // Validaciones
       const phoneTrim = (formData.phone ?? "").trim()
       const phoneRegex = /^\d{8}$/
@@ -112,7 +100,7 @@ export default function EditProfilePage() {
         throw new Error("Correo personal inválido")
       }
 
-      // Comparar contra original REAL (esto antes estaba mal)
+      // Comparar contra original
       const nextPersonal = personalTrim ? personalTrim.toLowerCase() : ""
       const nextPhone = phoneTrim
 
@@ -124,38 +112,29 @@ export default function EditProfilePage() {
         throw new Error("No se detectaron cambios para guardar")
       }
 
-      // Update
-      const updateData: any = {
-        phone: nextPhone,
-        updated_at: new Date().toISOString(),
-        personalEmail: nextPersonal ? nextPersonal : null,
-      }
+      // Update using API
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: originalData.name,
+          cedula: originalData.cedula,
+          phone: nextPhone,
+          personalEmail: nextPersonal || null,
+          carnet: originalData.carnet,
+          semester: originalData.semester,
+          address: originalData.address,
+        }),
+      })
 
-      const { error: updateError } = await supabase
-        .from("USERS")
-        .update(updateData)
-        .eq("id", session.user.id)
-
-      if (updateError) throw updateError
-
-      // AUDIT_LOG (no rompe si falla por RLS)
-      try {
-        await supabase.from("AUDIT_LOG").insert({
-          action: "profile_update",
-          entity: "USERS",
-          user_id: session.user.id,
-          entity_id: session.user.id,
-          details: {
-            updated_fields: ["phone", "personalEmail"],
-          },
-        })
-      } catch (e) {
-        console.warn("AUDIT_LOG insert failed (ignored):", e)
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.message || "Error al actualizar perfil")
       }
 
       setSuccess("Perfil actualizado exitosamente")
 
-      // actualizar originales para que no diga que hay cambios al toque
+      // actualizar originales
       setOriginalEditable({
         phone: nextPhone,
         personalEmail: nextPersonal,

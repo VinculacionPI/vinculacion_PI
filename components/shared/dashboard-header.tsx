@@ -23,7 +23,12 @@ export function DashboardHeader({ userName = "Usuario", userRole = "Estudiante" 
   const router = useRouter()
 
   const handleLogout = async () => {
-    // TODO: Implement actual logout logic
+    
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
+
     router.push("/login")
   }
 
@@ -37,35 +42,6 @@ export function DashboardHeader({ userName = "Usuario", userRole = "Estudiante" 
             <p className="text-xs text-muted-foreground hidden sm:block">Instituto Tecnológico de Costa Rica</p>
           </div>
         </Link>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              <span className="hidden sm:inline">{userName}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">{userName}</span>
-                <span className="text-xs text-muted-foreground font-normal">{userRole}</span>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/student/profile" className="cursor-pointer flex items-center gap-2">
-                <User className="h-4 w-4" />
-                <span>Mi Perfil</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Cerrar Sesión</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </header>
   )
