@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server"
-import { createServerSupabase } from "@/lib/supabase"
+import { createServerSupabase } from "@/lib/supabase/server"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     const { data, error } = await supabase
       .from("OPPORTUNITY")
       .select("company_id, COMPANY:company_id ( id, name )")
       .eq("type", "TFG")
-      .eq("lifecycle_status", "ACTIVE")
+      .eq("lifecycle_status", "Activo")
 
     if (error) throw error
 

@@ -1,22 +1,19 @@
 // app/api/admin/opportunities/[id]/reject/route.ts
 import { NextRequest, NextResponse } from "next/server"
-import { createServerSupabase } from "@/lib/supabase"
+import { createServerSupabase } from "@/lib/supabase/server"
 
 function isDev() {
   return process.env.NODE_ENV !== "production"
 }
 
-export async function POST(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
-  const supabase = createServerSupabase()
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const supabase = await createServerSupabase()
   const { id } = await ctx.params
 
   const body = await req.json().catch(() => ({} as any))
-  const rejection_reason = String(body?.rejection_reason ?? body?.reason ?? "").trim()
+  const reason = String(body?.rejection_reason ?? body?.reason ?? "").trim()
 
-  if (rejection_reason.length < 20) {
+  if (reason.length < 20) {
     return NextResponse.json(
       { message: "El motivo de rechazo debe tener mínimo 20 caracteres" },
       { status: 400 }
@@ -26,57 +23,61 @@ export async function POST(
   // Usuario autenticado o fallback DEV
   const { data: auth } = await supabase.auth.getUser()
   let userId: string | null = auth?.user?.id ?? null
-
-  if (!userId && isDev()) {
-    userId = process.env.DEV_USER_ID ?? null
-  }
+  if (!userId && isDev()) userId = process.env.DEV_USER_ID ?? null
 
   if (!userId) {
-    return NextResponse.json(
-      { message: "No autenticado y sin DEV_USER_ID" },
-      { status: 401 }
-    )
+    return NextResponse.json({ message: "No autenticado y sin DEV_USER_ID" }, { status: 401 })
   }
 
-  // Rechazar oportunidad
-  const { data, error } = await supabase
+  // 1) Rechazar oportunidad (sin rejection_reason en OPPORTUNITY)
+  const { data: opp, error: oppErr } = await supabase
     .from("OPPORTUNITY")
     .update({
-      approval_status: "REJECTED",
-      rejection_reason,
-      lifecycle_status: "INACTIVE",
+      approval_status: "Rechazado",
+      lifecycle_status: "Inactivo",
     })
     .eq("id", id)
-    .select("id,title,approval_status,rejection_reason,company_id,created_at")
+    .select("id,title,approval_status,company_id,created_at,lifecycle_status")
     .single()
 
-  if (error || !data) {
+  if (oppErr || !opp) {
     return NextResponse.json(
-      { message: "Error al rechazar oportunidad", detail: error?.message },
+      { message: "Error al rechazar oportunidad", detail: oppErr?.message },
       { status: 500 }
     )
   }
 
-  // Auditoría
+  // 2) Guardar motivo en REJECT_OPPORTUNITY
+  const { error: rejErr } = await supabase.from("REJECT_OPPORTUNITY").insert({
+    opportunity: opp.id,
+    reason,
+  })
+
+  if (rejErr) {
+    return NextResponse.json(
+      { message: "Oportunidad rechazada, pero falló guardar el motivo", detail: rejErr.message },
+      { status: 500 }
+    )
+  }
+
+  // 3) Auditoría
   const { error: auditError } = await supabase.from("AUDIT_LOG").insert({
     action: "REJECT",
     entity: "OPPORTUNITY",
-    entity_id: data.id,
-    company_id: data.company_id,
+    entity_id: opp.id,
+    company_id: opp.company_id,
     user_id: userId,
     details: {
-      approval_status: "REJECTED",
-      title: data.title,
-      rejection_reason,
+      approval_status: opp.approval_status,
+      title: opp.title,
+      rejection_reason: reason,
     },
   })
 
-  if (auditError) {
-    console.error("AUDIT_LOG error:", auditError)
-  }
+  if (auditError) console.error("AUDIT_LOG error:", auditError)
 
   return NextResponse.json(
-    { message: "Oportunidad rechazada", opportunity: data },
+    { message: "Oportunidad rechazada", opportunity: { ...opp, rejection_reason: reason } },
     { status: 200 }
   )
 }

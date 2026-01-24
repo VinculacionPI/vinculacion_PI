@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
-import { createServerSupabase } from "@/lib/supabase"
+import { createServerSupabase } from "@/lib/supabase/server"
 
-const TFG_TYPE = "graduation-project"
+// En tu BD, OPPORTUNITY.type para TFG es "TFG" (no "graduation-project")
+const TFG_TYPE = "TFG"
 
 export async function GET() {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data, error } = await supabase
     .from("OPPORTUNITY")
@@ -25,7 +26,8 @@ export async function GET() {
       )
     `
     )
-    .eq("approval_status", "PENDING")
+    // En tu BD los estados son "Pendiente" / "Aprobado" / "Rechazado"
+    .eq("approval_status", "Pendiente")
     .eq("type", TFG_TYPE)
     .order("created_at", { ascending: true })
 
@@ -39,7 +41,6 @@ export async function GET() {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
-  // Mapeo al shape que tu tabla espera
   const mapped =
     (data ?? []).map((o: any) => ({
       id: o.id,
@@ -50,9 +51,9 @@ export async function GET() {
       type: o.type,
       status: "pending",
       description: o.description ?? "",
-      postedAt: o.created_at, 
-      requirements: [], 
-      created_at: o.created_at, 
+      postedAt: o.created_at,
+      requirements: [],
+      created_at: o.created_at,
     })) ?? []
 
   return NextResponse.json(mapped)

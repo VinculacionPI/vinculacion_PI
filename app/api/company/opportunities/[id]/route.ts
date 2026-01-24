@@ -1,30 +1,18 @@
-import { NextResponse } from "next/server"
-import { createServerSupabase } from "@/lib/supabase"
+import { NextRequest, NextResponse } from "next/server"
+import { createServerSupabase } from "@/lib/supabase/server"
 
 function isDev() {
   return process.env.NODE_ENV !== "production"
 }
 
-export async function PUT(
-  req: Request,
-  ctx: { params: Promise<{ id: string }> }
-) {
-  const supabase = createServerSupabase()
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const supabase = await createServerSupabase()
 
-  // IMPORTANTE: params es Promise
   const { id } = await ctx.params
 
   const body = await req.json().catch(() => ({} as any))
 
-  const {
-    title,
-    description,
-    type,
-    mode,
-    duration_estimated,
-    requirements,
-    contact_info,
-  } = body
+  const { title, description, type, mode, duration_estimated, requirements, contact_info } = body
 
   // Validación básica
   const missing = {
@@ -97,25 +85,49 @@ export async function PUT(
     return NextResponse.json({ message: "No autorizado" }, { status: 403 })
   }
 
-  // Update
+  // Update (OPPORTUNITY no tiene duration_estimated en tu schema: se guarda en INTERNSHIP.schedule)
   const { data, error } = await supabase
     .from("OPPORTUNITY")
     .update({
       title: String(title).trim(),
       description: String(description).trim(),
-      type,
+      type, // en tu BD suele ser "TFG"
       mode,
-      duration_estimated: String(duration_estimated).trim(),
       requirements: String(requirements).trim(),
       contact_info: String(contact_info).trim(),
+      // opcional: si al editar debe volver a "Pendiente"
+      // approval_status: "Pendiente",
     })
     .eq("id", id)
-    .select("id,title,description,type,mode,duration_estimated,requirements,contact_info,approval_status,lifecycle_status,created_at")
+    .select(
+      "id,title,description,type,mode,requirements,contact_info,approval_status,lifecycle_status,created_at,company_id"
+    )
     .single()
 
   if (error || !data) {
     return NextResponse.json(
       { message: "Error al actualizar la oportunidad", detail: error?.message },
+      { status: 500 }
+    )
+  }
+
+  // Upsert de INTERNSHIP.schedule (duración)
+  const { error: internshipErr } = await supabase
+    .from("INTERNSHIP")
+    .upsert(
+      {
+        opportunity: id,
+        schedule: String(duration_estimated).trim(),
+        // campos NOT NULL en tu schema:
+        remuneration: 0,
+        duration: "0 days",
+      },
+      { onConflict: "opportunity" }
+    )
+
+  if (internshipErr) {
+    return NextResponse.json(
+      { message: "Oportunidad actualizada pero falló guardar la duración (INTERNSHIP)", detail: internshipErr.message },
       { status: 500 }
     )
   }
@@ -127,8 +139,11 @@ export async function PUT(
     entity_id: id,
     company_id: companyId,
     user_id: userId,
-    details: { title: data.title, type: data.type },
+    details: { title: data.title, type: data.type, duration_estimated: String(duration_estimated).trim() },
   })
 
-  return NextResponse.json(data, { status: 200 })
+  return NextResponse.json(
+    { ...data, duration_estimated: String(duration_estimated).trim() },
+    { status: 200 }
+  )
 }
