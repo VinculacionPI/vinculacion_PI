@@ -1,12 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-// CORRECCIÓN: Importa el cliente ya instanciado
 import { supabase } from "@/lib/supabase/client"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, MapPin, IdCard, BookOpen, Calendar, GraduationCap, Edit, FileText, ArrowLeft } from "lucide-react"
+import { User, Mail, Phone, MapPin, IdCard, BookOpen, GraduationCap, Edit, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -33,15 +32,19 @@ export default function StudentProfilePage() {
 
   useEffect(() => {
     fetchProfile()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchProfile = async () => {
     try {
-      // Usa supabase directamente, NO llames createClient
-      
-      const { data: { session } } = await supabase.auth.getSession()
+      setLoading(true)
+      setError("")
+
+      const { data: { session }, error: sessErr } = await supabase.auth.getSession()
+      if (sessErr) throw sessErr
+
       if (!session) {
-        router.push("/login")
+        router.replace("/login")
         return
       }
 
@@ -52,10 +55,9 @@ export default function StudentProfilePage() {
         .single()
 
       if (error) throw error
-      
-      setProfile(data)
+      setProfile(data as any)
     } catch (err: any) {
-      setError(err.message)
+      setError(err?.message ?? "Error cargando perfil")
     } finally {
       setLoading(false)
     }
@@ -67,23 +69,20 @@ export default function StudentProfilePage() {
 
   return (
     <div className="container max-w-6xl mx-auto py-8">
-      {/* Encabezado */}
       <div className="mb-6">
         <Button variant="ghost" asChild className="mb-4">
-          <Link href="/student" className="flex items-center gap-2">
+          <Link href="/dashboard/student" className="flex items-center gap-2">
             <ArrowLeft className="h-4 w-4" />
             Volver al Dashboard
           </Link>
         </Button>
-        
+
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Mi Perfil</h1>
-            <p className="text-gray-600 mt-2">
-              Gestiona tu información personal y académica
-            </p>
+            <p className="text-gray-600 mt-2">Gestiona tu información personal y académica</p>
           </div>
-          
+
           <div className="flex gap-3">
             <Button asChild variant="outline">
               <Link href="/dashboard/student/profile/edit" className="flex items-center gap-2">
@@ -91,7 +90,8 @@ export default function StudentProfilePage() {
                 Editar Perfil
               </Link>
             </Button>
-            {profile.role === "student" && (
+
+            {(profile.role ?? "").toLowerCase() === "student" && (
               <Button asChild>
                 <Link href="/dashboard/student/upgrade-to-graduate" className="flex items-center gap-2">
                   <GraduationCap className="h-4 w-4" />
@@ -104,7 +104,6 @@ export default function StudentProfilePage() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Información Personal */}
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -112,61 +111,21 @@ export default function StudentProfilePage() {
               Información Personal
             </CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
-              <InfoField 
-                icon={<User className="h-4 w-4" />}
-                label="Nombre Completo"
-                value={profile.name}
-                isEditable={false}
-              />
-              <InfoField 
-                icon={<IdCard className="h-4 w-4" />}
-                label="Cédula"
-                value={profile.cedula}
-                isEditable={false}
-              />
-              <InfoField 
-                icon={<IdCard className="h-4 w-4" />}
-                label="Carné"
-                value={profile.carnet}
-                isEditable={false}
-              />
-              <InfoField 
-                icon={<Mail className="h-4 w-4" />}
-                label="Correo Institucional"
-                value={profile.email}
-                isEditable={false}
-              />
-              <InfoField 
-                icon={<Mail className="h-4 w-4" />}
-                label="Correo Personal"
-                value={profile.personalEmail || "No registrado"}
-                isEditable={true}
-              />
-              <InfoField 
-                icon={<Phone className="h-4 w-4" />}
-                label="Teléfono"
-                value={profile.phone}
-                isEditable={true}
-              />
-              <InfoField 
-                icon={<MapPin className="h-4 w-4" />}
-                label="Dirección"
-                value={profile.address}
-                isEditable={false}
-              />
-              <InfoField 
-                icon={<BookOpen className="h-4 w-4" />}
-                label="Semestre"
-                value={`Semestre ${profile.semester}`}
-                isEditable={false}
-              />
+              <InfoField icon={<User className="h-4 w-4" />} label="Nombre Completo" value={profile.name} />
+              <InfoField icon={<IdCard className="h-4 w-4" />} label="Cédula" value={profile.cedula} />
+              <InfoField icon={<IdCard className="h-4 w-4" />} label="Carné" value={profile.carnet} />
+              <InfoField icon={<Mail className="h-4 w-4" />} label="Correo Institucional" value={profile.email} />
+              <InfoField icon={<Mail className="h-4 w-4" />} label="Correo Personal" value={profile.personalEmail || "No registrado"} />
+              <InfoField icon={<Phone className="h-4 w-4" />} label="Teléfono" value={profile.phone || "No registrado"} />
+              <InfoField icon={<MapPin className="h-4 w-4" />} label="Dirección" value={profile.address} />
+              <InfoField icon={<BookOpen className="h-4 w-4" />} label="Semestre" value={`Semestre ${profile.semester}`} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Estado y Acciones */}
         <Card>
           <CardHeader>
             <CardTitle>Estado de la Cuenta</CardTitle>
@@ -174,27 +133,25 @@ export default function StudentProfilePage() {
           <CardContent className="space-y-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Badge variant={profile.role === "student" ? "default" : "secondary"}>
-                  {profile.role === "student" ? "Estudiante" : "Egresado"}
+                <Badge variant={(profile.role ?? "").toLowerCase() === "student" ? "default" : "secondary"}>
+                  {(profile.role ?? "").toLowerCase() === "student" ? "Estudiante" : "Egresado"}
                 </Badge>
-                <Badge variant={profile.status === "active" ? "default" : "destructive"}>
-                  {profile.status === "active" ? "Activo" : "Inactivo"}
+
+                <Badge variant={(profile.status ?? "").toLowerCase() === "active" ? "default" : "destructive"}>
+                  {(profile.status ?? "").toLowerCase() === "active" ? "Activo" : "Inactivo"}
                 </Badge>
               </div>
+
               <p className="text-sm text-gray-500">
-                Miembro desde: {new Date(profile.created_at).toLocaleDateString()}
+                Miembro desde: {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : "—"}
               </p>
             </div>
 
             <div className="space-y-3">
               <h3 className="font-semibold">Acciones Disponibles</h3>
-              <p className="text-sm text-gray-500 mb-2">
-                ¿Necesitas cambiar datos no editables?
-              </p>
+              <p className="text-sm text-gray-500">¿Necesitas cambiar datos no editables?</p>
               <Button variant="link" className="p-0 h-auto" asChild>
-                <Link href="/dashboard/student/profile-request-change">
-                  Solicitar cambio administrativo
-                </Link>
+                <Link href="/dashboard/student/profile/request-change">Solicitar cambio administrativo</Link>
               </Button>
             </div>
           </CardContent>
@@ -204,19 +161,14 @@ export default function StudentProfilePage() {
   )
 }
 
-function InfoField({ icon, label, value, isEditable }: any) {
+function InfoField({ icon, label, value }: any) {
   return (
     <div>
       <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
         {icon}
         <span>{label}</span>
-        {isEditable && (
-          <Badge variant="outline" className="text-xs">
-            Editable
-          </Badge>
-        )}
       </div>
-      <p className="font-medium">{value}</p>
+      <p className="font-medium break-words">{value}</p>
     </div>
   )
 }

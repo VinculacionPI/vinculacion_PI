@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,27 +24,33 @@ export function LoginForm() {
     setError("")
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const { data, error: supaError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || "Error al iniciar sesión")
+      if (supaError || !data.session) {
+        setError(supaError?.message || "Error al iniciar sesión")
+        setIsLoading(false)
+        return
       }
-
-      // Redirect based on user role
+      // Obtener el rol del usuario desde la base de datos
+      const { data: userData, error: userError } = await supabase
+        .from("USERS")
+        .select("role")
+        .eq("id", data.user.id)
+        .single()
+      if (userError || !userData) {
+        setError("No se pudo obtener el rol del usuario")
+        setIsLoading(false)
+        return
+      }
       const roleRoutes: Record<string, string> = {
         student: "/dashboard/student",
         graduate: "/dashboard/graduate",
         company: "/dashboard/company",
         admin: "/dashboard/admin",
       }
-
-      router.push(roleRoutes[data.role] || "/dashboard/student")
+      router.replace(roleRoutes[userData.role] || "/dashboard/student")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido")
     } finally {

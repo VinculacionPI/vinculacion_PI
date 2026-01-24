@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase" // Importar el cliente ya configurado
+import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,12 +12,19 @@ import { useRouter } from "next/navigation"
 
 export default function EditProfilePage() {
   const router = useRouter()
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState("")
   const [error, setError] = useState("")
-  
+
   const [formData, setFormData] = useState({
+    personalEmail: "",
+    phone: "",
+  })
+
+  // guarda valores originales para comparar cambios
+  const [originalEditable, setOriginalEditable] = useState({
     personalEmail: "",
     phone: "",
   })
@@ -33,14 +40,19 @@ export default function EditProfilePage() {
 
   useEffect(() => {
     fetchProfile()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchProfile = async () => {
     try {
-      // Usar el cliente Supabase ya configurado
-      const { data: { session } } = await supabase.auth.getSession()
+      setLoading(true)
+      setError("")
+
+      const { data: { session }, error: sessErr } = await supabase.auth.getSession()
+      if (sessErr) throw sessErr
+
       if (!session) {
-        router.push("/login")
+        router.replace("/login")
         return
       }
 
@@ -51,22 +63,23 @@ export default function EditProfilePage() {
         .single()
 
       if (error) throw error
-      
-      setFormData({
-        personalEmail: data.personalEmail || "",
-        phone: data.phone || "",
-      })
+
+      const personalEmail = data.personalEmail ?? ""
+      const phone = data.phone ?? ""
+
+      setFormData({ personalEmail, phone })
+      setOriginalEditable({ personalEmail, phone })
 
       setOriginalData({
-        name: data.name,
-        email: data.email,
-        cedula: data.cedula,
-        carnet: data.carnet,
-        address: data.address,
-        semester: data.semester,
+        name: data.name ?? "",
+        email: data.email ?? "",
+        cedula: data.cedula ?? "",
+        carnet: data.carnet ?? "",
+        address: data.address ?? "",
+        semester: String(data.semester ?? ""),
       })
     } catch (err: any) {
-      setError(err.message)
+      setError(err?.message ?? "Error cargando perfil")
     } finally {
       setLoading(false)
     }
@@ -79,41 +92,43 @@ export default function EditProfilePage() {
     setSuccess("")
 
     try {
-      // Usar el cliente Supabase ya configurado
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error("No hay sesión activa")
+      const { data: { session }, error: sessErr } = await supabase.auth.getSession()
+      if (sessErr) throw sessErr
+      if (!session) {
+        router.replace("/login")
+        return
+      }
 
-      // Validar teléfono
+      // Validaciones
+      const phoneTrim = (formData.phone ?? "").trim()
       const phoneRegex = /^\d{8}$/
-      if (!phoneRegex.test(formData.phone)) {
+      if (!phoneRegex.test(phoneTrim)) {
         throw new Error("El teléfono debe tener 8 dígitos")
       }
 
-      // Validar email personal si está presente - usando regex más robusto
+      const personalTrim = (formData.personalEmail ?? "").trim()
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (formData.personalEmail && !emailRegex.test(formData.personalEmail)) {
+      if (personalTrim && !emailRegex.test(personalTrim)) {
         throw new Error("Correo personal inválido")
       }
 
-      // Actualizar datos editables
-      const updateData: any = {
-        phone: formData.phone,
-        updated_at: new Date().toISOString()
-      }
+      // Comparar contra original REAL (esto antes estaba mal)
+      const nextPersonal = personalTrim ? personalTrim.toLowerCase() : ""
+      const nextPhone = phoneTrim
 
-      if (formData.personalEmail.trim()) {
-        updateData.personalEmail = formData.personalEmail.toLowerCase()
-      } else {
-        updateData.personalEmail = null
-      }
+      const hasChanges =
+        nextPhone !== (originalEditable.phone ?? "") ||
+        nextPersonal !== (originalEditable.personalEmail ?? "")
 
-      // Verificar si realmente hay cambios
-      const hasChanges = 
-        updateData.phone !== formData.phone || 
-        (updateData.personalEmail || null) !== (formData.personalEmail || null)
-      
       if (!hasChanges) {
         throw new Error("No se detectaron cambios para guardar")
+      }
+
+      // Update
+      const updateData: any = {
+        phone: nextPhone,
+        updated_at: new Date().toISOString(),
+        personalEmail: nextPersonal ? nextPersonal : null,
       }
 
       const { error: updateError } = await supabase
@@ -123,34 +138,34 @@ export default function EditProfilePage() {
 
       if (updateError) throw updateError
 
-      // Registrar auditoría
-      await supabase
-        .from("audit_logs")
-        .insert([{
+      // AUDIT_LOG (no rompe si falla por RLS)
+      try {
+        await supabase.from("AUDIT_LOG").insert({
+          action: "profile_update",
+          entity: "USERS",
           user_id: session.user.id,
-          operation_type: "profile_update",
-          ip_address: "client-side",
-          details: "Actualización de datos personales",
-          metadata: {
-            updated_fields: Object.keys(updateData).filter(k => k !== 'updated_at'),
-            old_values: {
-              phone: formData.phone,
-              personalEmail: formData.personalEmail
-            },
-            new_values: updateData
+          entity_id: session.user.id,
+          details: {
+            updated_fields: ["phone", "personalEmail"],
           },
-          created_at: new Date().toISOString()
-        }])
+        })
+      } catch (e) {
+        console.warn("AUDIT_LOG insert failed (ignored):", e)
+      }
 
       setSuccess("Perfil actualizado exitosamente")
-      
-      // Redirigir después de 2 segundos
+
+      // actualizar originales para que no diga que hay cambios al toque
+      setOriginalEditable({
+        phone: nextPhone,
+        personalEmail: nextPersonal,
+      })
+
       setTimeout(() => {
         router.push("/dashboard/student/profile")
-      }, 2000)
-
+      }, 1200)
     } catch (err: any) {
-      setError(err.message)
+      setError(err?.message ?? "Error guardando")
     } finally {
       setSaving(false)
     }
@@ -168,9 +183,7 @@ export default function EditProfilePage() {
           </Link>
         </Button>
         <h1 className="text-3xl font-bold">Editar Perfil</h1>
-        <p className="text-gray-600 mt-2">
-          Actualiza tu información personal. Solo algunos campos son editables.
-        </p>
+        <p className="text-gray-600 mt-2">Actualiza tu información personal. Solo algunos campos son editables.</p>
       </div>
 
       <Card>
@@ -180,22 +193,21 @@ export default function EditProfilePage() {
             Campos marcados con * son obligatorios. Los campos no editables requieren solicitud administrativa.
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Campos NO editables - Solo lectura */}
+            {/* NO editables */}
             <div className="space-y-4">
               <h3 className="font-semibold text-lg flex items-center gap-2">
                 <User className="h-5 w-5" />
                 Información Institucional (No Editable)
               </h3>
-              
+
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nombre Completo</Label>
                   <Input value={originalData.name} disabled className="bg-gray-50" />
-                  <p className="text-xs text-gray-500">
-                    Para cambios, solicite al administrador
-                  </p>
+                  <p className="text-xs text-gray-500">Para cambios, solicite al administrador</p>
                 </div>
 
                 <div className="space-y-2">
@@ -220,18 +232,18 @@ export default function EditProfilePage() {
 
                 <div className="space-y-2">
                   <Label>Semestre</Label>
-                  <Input value={`Semestre ${originalData.semester}`} disabled className="bg-gray-50" />
+                  <Input value={originalData.semester ? `Semestre ${originalData.semester}` : ""} disabled className="bg-gray-50" />
                 </div>
               </div>
             </div>
 
-            {/* Campos editables */}
+            {/* Editables */}
             <div className="space-y-4 pt-6 border-t">
               <h3 className="font-semibold text-lg flex items-center gap-2">
                 <Mail className="h-5 w-5" />
                 Información Editable
               </h3>
-              
+
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="personalEmail" className="flex items-center gap-2">
@@ -243,12 +255,10 @@ export default function EditProfilePage() {
                     type="email"
                     placeholder="personal@email.com"
                     value={formData.personalEmail}
-                    onChange={(e) => setFormData({...formData, personalEmail: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, personalEmail: e.target.value })}
                     disabled={saving}
                   />
-                  <p className="text-xs text-gray-500">
-                    Opcional. Para contacto alternativo.
-                  </p>
+                  <p className="text-xs text-gray-500">Opcional. Para contacto alternativo.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -261,24 +271,20 @@ export default function EditProfilePage() {
                     type="tel"
                     placeholder="88888888"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     disabled={saving}
                     required
                   />
-                  <p className="text-xs text-gray-500">
-                    8 dígitos sin guiones
-                  </p>
+                  <p className="text-xs text-gray-500">8 dígitos sin guiones</p>
                 </div>
               </div>
             </div>
 
-            {/* Mensajes de éxito/error */}
             {success && (
               <div className="bg-green-50 border border-green-200 rounded-md p-4 flex gap-3">
                 <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                 <div>
                   <p className="text-green-700 font-medium">{success}</p>
-                  <p className="text-green-600 text-sm">Redirigiendo al perfil...</p>
                 </div>
               </div>
             )}
@@ -290,17 +296,16 @@ export default function EditProfilePage() {
               </div>
             )}
 
-            {/* Botones */}
             <div className="flex justify-between pt-4">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/dashboard/student/profile")} // Corregido: ruta completa
+                onClick={() => router.push("/dashboard/student/profile")}
                 disabled={saving}
               >
                 Cancelar
               </Button>
-              
+
               <Button type="submit" disabled={saving}>
                 {saving ? "Guardando..." : "Guardar Cambios"}
               </Button>
@@ -309,7 +314,6 @@ export default function EditProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Solicitud para cambios no editables */}
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>¿Necesitas cambiar datos no editables?</CardTitle>
@@ -319,7 +323,7 @@ export default function EditProfilePage() {
         </CardHeader>
         <CardContent>
           <Button variant="outline" asChild>
-            <Link href="/dashboard/student/profile/request-change"> {/* Corregido: ruta completa */}
+            <Link href="/dashboard/student/profile/request-change">
               Solicitar Cambio Administrativo
             </Link>
           </Button>

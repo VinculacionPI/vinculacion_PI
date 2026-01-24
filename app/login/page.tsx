@@ -1,8 +1,25 @@
+"use client"
+
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase/client"
 import Link from "next/link"
 import { LoginForm } from "@/components/auth/login-form"
 import { Briefcase } from "lucide-react"
 
 export default function LoginPage() {
+  const router = useRouter()
+
+  useEffect(() => {
+    // Verificar si ya hay una sesión activa
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        // Redirigir al dashboard si hay sesión activa
+        router.replace("/dashboard/student")
+      }
+    })
+  }, [router])
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted px-4">
       <div className="w-full max-w-md">
