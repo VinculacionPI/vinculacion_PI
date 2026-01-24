@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,8 @@ import { generarFlyer } from "@/lib/services/persona5-backend"
 import { supabase } from "@/lib/supabase"
 import type { OpportunityType } from "@/lib/types"
 import { getCurrentCompanyId } from '@/lib/auth/get-current-user'
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface OpportunityFormProps {
   initialData?: {
@@ -40,6 +42,10 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
     description: initialData?.description || "",
     type: (initialData?.type as OpportunityType) || "job",
     location: initialData?.location || "",
+    mode: "virtual",
+    duration: "6 meses",
+    expiresAt: "",
+    contactInfo: "",
     salary: initialData?.salary || "",
     requirements: initialData?.requirements || [""],
   })
@@ -90,6 +96,24 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
             }
           }
 
+            useEffect(() => {
+            async function loadCompanyEmail() {
+              if (!formData.contactInfo) {
+                const empresaId = await getCurrentCompanyId()
+                const { data: company } = await supabase
+                  .from('COMPANY')
+                  .select('email')
+                  .eq('id', empresaId)
+                  .single()
+                
+                if (company?.email) {
+                  setFormData(prev => ({ ...prev, contactInfo: company.email }))
+                }
+              }
+            }
+            loadCompanyEmail()
+          }, [])
+
           const { error: updateError } = await supabase
             .from('OPPORTUNITY')
             .update(updateData)
@@ -101,6 +125,17 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
       } else {
         // Crear nueva oportunidad usando fetch directo
         const empresaId = await getCurrentCompanyId()
+
+        // Obtener email de la empresa
+        const { data: company } = await supabase
+          .from('COMPANY')
+          .select('email')
+          .eq('id', empresaId)
+          .single()
+
+        if (!formData.contactInfo && company?.email) {
+            setFormData(prev => ({ ...prev, contactInfo: company.email }))
+          }
 
         const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/OPPORTUNITY`, {
           method: 'POST',
@@ -114,12 +149,15 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
             title: formData.title,
             description: formData.description,
             type: tipoMapeado,
-            mode: formData.location,
-            requirements: formData.requirements.filter(r => r.trim()).join('\n'),
+            mode: formData.mode,
+            requirements: formData.requirements.filter(r => r.trim()).join('\n') || 'No especificados',
             company_id: empresaId,
             status: 'OPEN',
             approval_status: 'PENDING',
             lifecycle_status: 'ACTIVE',
+            contact_info: formData.contactInfo || company?.email,
+            interest_count: 0,
+            duration: formData.duration,
           })
         })
 
@@ -328,7 +366,8 @@ const handleGenerateFlyer = async () => {
             </RadioGroup>
           </div>
 
-          <div className="space-y-2">
+
+            <div className="space-y-2">
             <Label htmlFor="location">Ubicación *</Label>
             <Input
               id="location"
@@ -339,6 +378,73 @@ const handleGenerateFlyer = async () => {
               disabled={isLoading}
             />
           </div>
+
+          
+          <div className="space-y-2">
+            <Label htmlFor="mode">Modalidad *</Label>
+            <Select 
+              value={formData.mode} 
+              onValueChange={(value) => setFormData({ ...formData, mode: value })}
+              disabled={isLoading}
+            >
+              <SelectTrigger id="mode">
+                <SelectValue placeholder="Selecciona modalidad" />
+              </SelectTrigger>
+            <SelectContent 
+              position="popper" 
+              sideOffset={5} 
+              className="z-50 bg-popover border border-border"
+            >
+              <SelectItem value="presencial">Presencial</SelectItem>
+              <SelectItem value="virtual">Virtual</SelectItem>
+              <SelectItem value="hibrida">Híbrida</SelectItem>
+            </SelectContent>
+            </Select>
+          </div>
+
+          {/* Duración (solo para Pasantías y Proyectos) */}
+          {(formData.type === 'internship' || formData.type === 'graduation-project') && (
+            <div className="space-y-2">
+              <Label htmlFor="duration">Duración Estimada *</Label>
+              <Input
+                id="duration"
+                placeholder="ej: 6 meses, 1 año"
+                value={formData.duration}
+                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                required
+                disabled={isLoading}
+              />
+            </div>
+          )}
+
+          {/* Fecha de expiración (solo para Empleos) */}
+          {formData.type === 'job' && (
+            <div className="space-y-2">
+              <Label htmlFor="expiresAt">Fecha de Expiración de la Oferta</Label>
+              <Input
+                id="expiresAt"
+                type="date"
+                value={formData.expiresAt}
+                onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
+                disabled={isLoading}
+              />
+            </div>
+          )}
+
+          {/* Información de Contacto */}
+          <div className="space-y-2">
+            <Label htmlFor="contactInfo">Información de Contacto *</Label>
+            <Input
+              id="contactInfo"
+              type="email"
+              placeholder="correo@empresa.com"
+              value={formData.contactInfo}
+              onChange={(e) => setFormData({ ...formData, contactInfo: e.target.value })}
+              required
+              disabled={isLoading}
+            />
+          </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="salary">Salario (Opcional)</Label>

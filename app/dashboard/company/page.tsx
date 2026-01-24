@@ -26,6 +26,8 @@ import { obtenerDashboardEmpresa, obtenerOportunidadesEmpresa } from "@/lib/serv
 import { DashboardStats } from "@/components/company/dashboard-stats"
 import { LoadingState } from "@/components/shared/loading-state"
 import { getCompanyIdFromUrl } from '@/lib/auth/get-current-user'
+import { Trash2, Loader2 } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 
 
 interface Filters {
@@ -101,16 +103,18 @@ export default function CompanyDashboardPage() {
   const applyFilters = () => {
     let filtered = [...opportunities]
 
-    // Filtro por tab activo
-    if (activeTab === 'active') {
-      filtered = filtered.filter(opp => opp.status === 'OPEN')
-    } else if (activeTab === 'inactive') {
-      filtered = filtered.filter(opp => opp.status === 'CLOSED')
-    } else if (activeTab === 'approved') {
-      filtered = filtered.filter(opp => opp.approval_status === 'APPROVED')
-    } else if (activeTab === 'rejected') {
-      filtered = filtered.filter(opp => opp.approval_status === 'REJECTED')
-    }
+      // Filtro por tab activo
+      if (activeTab === 'active') {
+        filtered = filtered.filter(opp => opp.status === 'OPEN')
+      } else if (activeTab === 'inactive') {
+        filtered = filtered.filter(opp => opp.status === 'CLOSED')
+      } else if (activeTab === 'pending') {
+        filtered = filtered.filter(opp => opp.approval_status === 'PENDING')
+      } else if (activeTab === 'approved') {
+        filtered = filtered.filter(opp => opp.approval_status === 'APPROVED')
+      } else if (activeTab === 'rejected') {
+        filtered = filtered.filter(opp => opp.approval_status === 'REJECTED')
+      }
 
     // Búsqueda
     if (filters.search) {
@@ -372,14 +376,15 @@ export default function CompanyDashboardPage() {
             </Button>
           )}
         </CardContent>
+        
       </Card>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="all">Oportunidades ({opportunities.length})</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="all">Todas ({opportunities.length})</TabsTrigger>
           <TabsTrigger value="active">Activas ({stats.active})</TabsTrigger>
           <TabsTrigger value="inactive">Inactivas ({opportunities.length - stats.active})</TabsTrigger>
+          <TabsTrigger value="pending">Pendientes ({stats.pending})</TabsTrigger>
           <TabsTrigger value="approved">Aprobadas ({opportunities.filter(o => o.approval_status === 'APPROVED').length})</TabsTrigger>
           <TabsTrigger value="rejected">Rechazadas ({opportunities.filter(o => o.approval_status === 'REJECTED').length})</TabsTrigger>
           <TabsTrigger value="metrics">Métricas</TabsTrigger>
@@ -425,6 +430,14 @@ export default function CompanyDashboardPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="pending">
+          {isLoading ? (
+            <LoadingState />
+          ) : (
+            <OpportunitiesList opportunities={filteredOpportunities} empresaId={empresaId!} />
+          )}
+        </TabsContent>
+
         <TabsContent value="metrics">
           {dashboardData ? (
             <DashboardStats data={dashboardData} />
@@ -438,6 +451,34 @@ export default function CompanyDashboardPage() {
 }
 
 function OpportunitiesList({ opportunities, empresaId }: { opportunities: any[], empresaId: string }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const router = useRouter()
+
+  const handleDelete = async (oppId: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta oportunidad? Esta acción no se puede deshacer.')) {
+      return
+    }
+
+    setDeletingId(oppId)
+    try {
+      const { error } = await supabase
+        .from('OPPORTUNITY')
+        .delete()
+        .eq('id', oppId)
+
+      if (error) throw error
+
+      // Recargar la página
+      router.refresh()
+      window.location.reload()
+    } catch (err) {
+      console.error('Error eliminando oportunidad:', err)
+      alert('Error al eliminar la oportunidad')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   if (opportunities.length === 0) {
     return (
       <Card>
@@ -481,9 +522,34 @@ function OpportunitiesList({ opportunities, empresaId }: { opportunities: any[],
               <div className="text-sm text-muted-foreground">
                 {new Date(opp.created_at).toLocaleDateString('es-CR')}
               </div>
-              <Link href={`/dashboard/company/opportunities/${opp.id}/edit?empresa_id=${empresaId}`}>
-                <Button variant="outline" size="sm">Ver Detalles</Button>
-              </Link>
+              <div className="flex gap-2">
+                {/* Ver como Público */}
+                <Link href={`/opportunities/${opp.id}`} target="_blank">
+                  <Button variant="outline" size="sm">
+                    <Eye className="h-4 w-4 mr-1" />
+                    Ver Público
+                  </Button>
+                </Link>
+
+                {/* Editar */}
+                <Link href={`/dashboard/company/opportunities/${opp.id}/edit?empresa_id=${empresaId}`}>
+                  <Button variant="outline" size="sm">Editar</Button>
+                </Link>
+
+                {/* Eliminar */}
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={() => handleDelete(opp.id)}
+                  disabled={deletingId === opp.id}
+                >
+                  {deletingId === opp.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
