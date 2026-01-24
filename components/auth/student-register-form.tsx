@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from '@/lib/supabase'
+import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -49,17 +49,15 @@ export function StudentRegisterForm() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
         const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
-          router.push('/dashboard')
-        }
-      } catch (error) {
-        console.log("No hay sesión activa, continuando con registro")
+        if (session) router.push("/dashboard")
+      } catch {
+        // no-op
       }
     }
     checkSession()
   }, [router])
+
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {}
@@ -129,9 +127,7 @@ export function StudentRegisterForm() {
     try {
       console.log("🚀 Iniciando proceso de registro...")
       
-      // Crear cliente Supabase
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-      console.log("✅ Cliente Supabase inicializado")
+
 
       // 1. Verificar unicidad ANTES de crear usuario
       console.log("🔍 Verificando datos únicos...")

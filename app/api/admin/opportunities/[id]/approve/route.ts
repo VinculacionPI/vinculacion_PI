@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createServerSupabase } from "@/lib/supabase"
+import { createServerSupabase } from "@/lib/supabase/server"
 
 function isDev() {
   return process.env.NODE_ENV !== "production"
 }
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { id } = await ctx.params
 
@@ -21,9 +21,10 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const { data, error } = await supabase
     .from("OPPORTUNITY")
     .update({
-      approval_status: "APPROVED",
-      rejection_reason: null,
-      lifecycle_status: "ACTIVE",
+      approval_status: "Aprobado",
+      lifecycle_status: "Activo",
+      // si no existe esa columna, quitá esta línea:
+      // rejection_reason: null,
     })
     .eq("id", id)
     .select("id,title,approval_status,company_id,created_at,lifecycle_status")
@@ -42,7 +43,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     entity_id: data.id,
     company_id: data.company_id,
     user_id: userId,
-    details: { approval_status: "APPROVED", title: data.title },
+    details: { approval_status: data.approval_status, title: data.title },
   })
 
   return NextResponse.json({ message: "Oportunidad aprobada", opportunity: data }, { status: 200 })

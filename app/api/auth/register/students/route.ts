@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { createServerSupabase } from '@/lib/supabase' 
+import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
+import { createServerSupabase } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // Esquema de validación con Zod
 const studentSchema = z.object({
@@ -8,14 +9,17 @@ const studentSchema = z.object({
   name: z.string().min(3, "El nombre debe tener al menos 3 caracteres").max(100),
   cedula: z.string().regex(/^\d{9}$/, "La cédula debe tener 9 dígitos numéricos"),
   carnet: z.string().regex(/^\d{7,10}$/, "El carnet debe tener entre 7 y 10 dígitos"),
-  email: z.string().email().refine(
-    email => email.endsWith('@estudiantec.cr') || email.endsWith('@itcr.ac.cr'),
-    "Debe usar un correo institucional válido (@estudiantec.cr o @itcr.ac.cr)"
-  ),
+  email: z
+    .string()
+    .email()
+    .refine(
+      (email) => email.endsWith("@estudiantec.cr") || email.endsWith("@itcr.ac.cr"),
+      "Debe usar un correo institucional válido (@estudiantec.cr o @itcr.ac.cr)"
+    ),
   personalEmail: z.string().email().optional().nullable(),
   phone: z.string().regex(/^\d{8}$/, "El teléfono debe tener 8 dígitos"),
   address: z.string().min(5, "La dirección debe tener al menos 5 caracteres").max(500),
-  semester: z.number().int().min(1).max(10)
+  semester: z.number().int().min(1).max(10),
 })
 
 export async function POST(request: NextRequest) {
@@ -29,14 +33,17 @@ export async function POST(request: NextRequest) {
     // Validar datos
     const validatedData = studentSchema.parse({
       ...body,
-      semester: Number(body.semester)
+      semester: Number(body.semester),
     })
-    
-    // 2. Inicializar cliente Supabase con permisos de servidor
-    const supabase = createServerSupabase()
-    
-    // Verificar conexión
-    const { error: connectionError } = await supabase.from('USERS').select('count', { count: 'exact', head: true })
+
+    // Cliente server (SSR). Ojo: este NO sirve para auth.admin
+    const supabase = await createServerSupabase()
+
+    // Verificar conexión (simple)
+    const { error: connectionError } = await supabase
+      .from("USERS")
+      .select("id", { count: "exact", head: true })
+
     if (connectionError) {
       console.error(' Error de conexión a Supabase:', connectionError)
       throw new Error('Error de conexión a la base de datos')
@@ -46,34 +53,30 @@ export async function POST(request: NextRequest) {
     
     // 3. Verificar que los datos sean únicos
     const { data: existingData, error: checkError } = await supabase
-      .from('USERS')
-      .select('id, email, cedula, carnet')
-      .or(`email.eq.${validatedData.email},cedula.eq.${validatedData.cedula},carnet.eq.${validatedData.carnet}`)
-    
+      .from("USERS")
+      .select("id, email, cedula, carnet")
+      .or(
+        `email.eq.${validatedData.email.toLowerCase()},cedula.eq.${validatedData.cedula},carnet.eq.${validatedData.carnet}`
+      )
+
     if (checkError) {
       console.error(' Error verificando datos:', checkError)
       throw new Error(`Error verificando datos: ${checkError.message}`)
     }
-    
+
     if (existingData && existingData.length > 0) {
       const duplicate = existingData[0]
-      if (duplicate.email === validatedData.email) {
-        throw new Error('Este correo institucional ya está registrado')
-      }
-      if (duplicate.cedula === validatedData.cedula) {
-        throw new Error('Esta cédula ya está registrada')
-      }
-      if (duplicate.carnet === validatedData.carnet) {
-        throw new Error('Este carnet ya está registrado')
-      }
+      if (duplicate.email === validatedData.email.toLowerCase()) throw new Error("Este correo institucional ya está registrado")
+      if (duplicate.cedula === validatedData.cedula) throw new Error("Esta cédula ya está registrada")
+      if (duplicate.carnet === validatedData.carnet) throw new Error("Este carnet ya está registrado")
     }
-    
-    // 4. Preparar datos para insertar en la tabla users
+
+    // Preparar datos para insertar en USERS (tu tabla)
     const userData = {
       id: validatedData.user_id,
       email: validatedData.email.toLowerCase(),
-      role: 'student',
-      status: 'active',
+      role: "student",
+      status: "active",
       name: validatedData.name.trim(),
       cedula: validatedData.cedula,
       phone: validatedData.phone,
@@ -81,41 +84,31 @@ export async function POST(request: NextRequest) {
       carnet: validatedData.carnet,
       semester: validatedData.semester.toString(),
       address: validatedData.address.trim(),
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     }
     
     console.log(' Insertando datos en tabla users:', JSON.stringify(userData, null, 2))
     
     // 5. Insertar en la tabla users
     const { data: insertedData, error: insertError } = await supabase
-      .from('USERS')
+      .from("USERS")
       .insert([userData])
       .select()
       .single()
-    
+
     if (insertError) {
+
       console.error(' Error insertando usuario:', {
+
         code: insertError.code,
         message: insertError.message,
-        details: insertError.details
+        details: insertError.details,
       })
-      
-      // Manejar errores específicos de Supabase
-      if (insertError.code === '23505') {
-        // Violación de unicidad (race condition)
-        throw new Error('Los datos ya están registrados en el sistema')
-      }
-      
-      if (insertError.code === '42501') {
-        // Error de permisos
-        throw new Error('Error de permisos. Contacte al administrador.')
-      }
-      
-      if (insertError.code === 'PGRST301') {
-        // Error de conexión
-        throw new Error('Error de conexión con la base de datos')
-      }
-      
+
+      if (insertError.code === "23505") throw new Error("Los datos ya están registrados en el sistema")
+      if (insertError.code === "42501") throw new Error("Error de permisos. Contacte al administrador.")
+      if (insertError.code === "PGRST301") throw new Error("Error de conexión con la base de datos")
+
       throw new Error(`Error al crear usuario: ${insertError.message}`)
     }
     
@@ -144,26 +137,27 @@ export async function POST(request: NextRequest) {
     } catch (authError) {
       console.warn(' Error en actualización de auth:', authError)
     }
-    
-    // 7. Registrar en audit_logs (opcional)
+
+    // Auditoría opcional
     try {
       const auditData = {
         user_id: validatedData.user_id,
-        operation_type: 'registration',
-        ip_address: request.headers.get('x-forwarded-for') || 
-                   request.headers.get('x-real-ip') || 
-                   'unknown',
-        user_agent: request.headers.get('user-agent') || 'unknown',
+        operation_type: "registration",
+        ip_address:
+          request.headers.get("x-forwarded-for") ||
+          request.headers.get("x-real-ip") ||
+          "unknown",
         details: `Registro de estudiante: ${validatedData.name} (${validatedData.carnet})`,
         metadata: {
           email: validatedData.email,
           carnet: validatedData.carnet,
           cedula: validatedData.cedula,
           semester: validatedData.semester,
-          source: 'student_register_form'
+          source: "student_register_form",
         },
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       }
+
       
       await supabase
         .from('audit_logs')
@@ -172,98 +166,72 @@ export async function POST(request: NextRequest) {
       console.log(' Auditoría registrada')
     } catch (auditError) {
       console.warn(' Error en auditoría (no crítico):', auditError)
+
     }
-    
-    // 8. Responder con éxito
-    return NextResponse.json({
-      success: true,
-      message: 'Usuario registrado exitosamente',
-      data: {
-        id: insertedData.id,
-        email: insertedData.email,
-        name: insertedData.name,
-        carnet: insertedData.carnet,
-        semester: insertedData.semester
-      }
-    }, { 
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    })
-    
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Usuario registrado exitosamente",
+        data: {
+          id: insertedData.id,
+          email: insertedData.email,
+          name: insertedData.name,
+          carnet: insertedData.carnet,
+          semester: insertedData.semester,
+        },
+      },
+      { status: 201, headers: { "Content-Type": "application/json" } }
+    )
   } catch (error) {
+
     console.error(' Error en API route:', error)
     
     // Manejar errores de validación de Zod
+
     if (error instanceof z.ZodError) {
-      return NextResponse.json({
-        success: false,
-        message: 'Error de validación de datos',
-        errors: error.errors.map(err => ({
-          field: err.path.join('.'),
-          message: err.message
-        }))
-      }, { 
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      })
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Error de validación de datos",
+          errors: error.errors.map((err) => ({
+            field: err.path.join("."),
+            message: err.message,
+          })),
+        },
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      )
     }
-    
-    // Manejar otros errores
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido en el servidor'
-    
-    return NextResponse.json({
-      success: false,
-      message: errorMessage,
-      error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
-    }, { 
-      status: 400,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    })
+
+    const errorMessage = error instanceof Error ? error.message : "Error desconocido en el servidor"
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: errorMessage,
+        error: process.env.NODE_ENV === "development" ? errorMessage : undefined,
+      },
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    )
   }
 }
 
 // Métodos HTTP no permitidos
 export async function GET() {
-  return NextResponse.json({
-    success: false,
-    message: 'Método GET no disponible para este endpoint. Use POST.'
-  }, { 
-    status: 405,
-    headers: {
-      'Allow': 'POST',
-      'Content-Type': 'application/json',
-    }
-  })
+  return NextResponse.json(
+    { success: false, message: "Método GET no disponible para este endpoint. Use POST." },
+    { status: 405, headers: { Allow: "POST", "Content-Type": "application/json" } }
+  )
 }
-
 export async function PUT() {
-  return NextResponse.json({
-    success: false,
-    message: 'Método PUT no disponible para este endpoint. Use POST.'
-  }, { 
-    status: 405,
-    headers: {
-      'Allow': 'POST',
-      'Content-Type': 'application/json',
-    }
-  })
+  return NextResponse.json(
+    { success: false, message: "Método PUT no disponible para este endpoint. Use POST." },
+    { status: 405, headers: { Allow: "POST", "Content-Type": "application/json" } }
+  )
 }
-
 export async function DELETE() {
-  return NextResponse.json({
-    success: false,
-    message: 'Método DELETE no disponible para este endpoint. Use POST.'
-  }, { 
-    status: 405,
-    headers: {
-      'Allow': 'POST',
-      'Content-Type': 'application/json',
-    }
-  })
+  return NextResponse.json(
+    { success: false, message: "Método DELETE no disponible para este endpoint. Use POST." },
+    { status: 405, headers: { Allow: "POST", "Content-Type": "application/json" } }
+  )
 }

@@ -1,27 +1,35 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { createRouteSupabase } from "@/lib/supabase/route"
 
-export async function POST(request: NextRequest) {
-  try {
-    const { email, password } = await request.json()
+export async function POST(req: NextRequest) {
+  const { supabase, res } = createRouteSupabase(req)
 
-    // TODO: Replace with actual authentication logic
-    // This is a placeholder that simulates API behavior
+  const body = await req.json().catch(() => ({}))
+  const email = String(body?.email ?? "").trim()
+  const password = String(body?.password ?? "").trim()
 
-    if (!email || !password) {
-      return NextResponse.json({ message: "Email y contraseña son requeridos" }, { status: 400 })
-    }
-
-    // Simulated response - replace with actual API call
-    const mockUser = {
-      id: "1",
-      email,
-      role: "student", // This would come from your database
-      name: "Usuario Demo",
-    }
-
-    return NextResponse.json(mockUser)
-  } catch (error) {
-    console.error("[v0] Login error:", error)
-    return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 })
+  if (!email || !password) {
+    return NextResponse.json({ message: "Email y contraseña requeridos" }, { status: 400 })
   }
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+
+  if (error || !data.session) {
+    return NextResponse.json(
+      { message: "Credenciales inválidas", detail: error?.message },
+      { status: 401 }
+    )
+  }
+
+  // Response final
+  const out = NextResponse.json(
+    { ok: true, user: { id: data.user.id, email: data.user.email } },
+    { status: 200 }
+  )
+
+  // Copiar Set-Cookie del “res” (donde supabase escribió cookies) al response final
+  const setCookie = res.headers.get("set-cookie")
+  if (setCookie) out.headers.set("set-cookie", setCookie)
+
+  return out
 }

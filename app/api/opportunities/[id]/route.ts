@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createServerSupabase } from "@/lib/supabase"
+import { createServerSupabase } from "@/lib/supabase/server"
 
 export async function GET(
   req: NextRequest,
@@ -7,9 +7,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    if (!id) return NextResponse.json({ message: "Missing id" }, { status: 400 })
+    if (!id) {
+      return NextResponse.json({ message: "Missing id" }, { status: 400 })
+    }
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     const { data, error } = await supabase
       .from("OPPORTUNITY")
@@ -17,9 +19,9 @@ export async function GET(
         `
         id,
         title,
+        type,
         description,
         mode,
-        duration_estimated,
         requirements,
         contact_info,
         status,
@@ -27,7 +29,12 @@ export async function GET(
         created_at,
         company_id,
         COMPANY:company_id ( name ),
-        flyers ( url, formato )
+        flyers ( url, formato ),
+        internship:INTERNSHIP!INTERNSHIP_opportunity_fkey (
+          schedule,
+          remuneration,
+          duration
+        )
       `
       )
       .eq("id", id)
@@ -36,22 +43,35 @@ export async function GET(
     if (error) throw error
     if (!data) return NextResponse.json({ message: "Not found" }, { status: 404 })
 
-    const companyName = data.COMPANY?.[0]?.name ?? "Empresa"
-    const flyerUrl = data.flyers?.[0]?.url ?? null
+    // En tu tipado actual, COMPANY y internship salen como arrays
+    const companyName =
+      Array.isArray((data as any).COMPANY) && (data as any).COMPANY[0]?.name
+        ? (data as any).COMPANY[0].name
+        : "Empresa"
+
+    const flyerUrl = (data as any).flyers?.[0]?.url ?? null
+
+    const internshipRow =
+      Array.isArray((data as any).internship) ? (data as any).internship[0] : (data as any).internship
 
     return NextResponse.json({
       id: data.id,
       title: data.title,
+      type: data.type ?? "",
       company: companyName,
       description: data.description ?? "",
       mode: data.mode ?? "",
-      duration: data.duration_estimated ?? "",
       requirements: data.requirements ?? "",
       contactInfo: data.contact_info ?? "",
       status: data.status ?? "",
       lifecycleStatus: data.lifecycle_status ?? "",
       createdAt: data.created_at,
       flyerUrl,
+
+      // Campos “extra” para student (si no hay internship, quedan vacíos)
+      schedule: internshipRow?.schedule ?? "",
+      remuneration: internshipRow?.remuneration ?? null,
+      internshipDuration: internshipRow?.duration ?? null,
     })
   } catch (e) {
     console.error("API opportunities/[id] error:", e)

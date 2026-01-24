@@ -12,6 +12,7 @@ export interface OpportunityFilters {
   search: string
   types: string[]
   locations: string[]
+  modalities?: string[]
 }
 
 interface OpportunityFiltersProps {
@@ -25,6 +26,7 @@ export function OpportunityFiltersComponent({ onFilterChange, initialFilters }: 
       search: "",
       types: [],
       locations: [],
+      modalities: [],
     },
   )
 
@@ -50,13 +52,22 @@ export function OpportunityFiltersComponent({ onFilterChange, initialFilters }: 
     onFilterChange(newFilters)
   }
 
-  const clearFilters = () => {
-    const newFilters = { search: "", types: [], locations: [] }
+  const handleModalityToggle = (modality: string) => {
+    const modalities = (filters.modalities || []).includes(modality)
+      ? (filters.modalities || []).filter((m) => m !== modality)
+      : [...(filters.modalities || []), modality]
+    const newFilters = { ...filters, modalities }
     setFilters(newFilters)
     onFilterChange(newFilters)
   }
 
-  const hasActiveFilters = filters.search || filters.types.length > 0 || filters.locations.length > 0
+  const clearFilters = () => {
+    const newFilters = { search: "", types: [], locations: [], modalities: [] }
+    setFilters(newFilters)
+    onFilterChange(newFilters)
+  }
+
+  const hasActiveFilters = filters.search || filters.types.length > 0 || filters.locations.length > 0 || (filters.modalities || []).length > 0
 
   return (
     <Card>
@@ -121,6 +132,42 @@ export function OpportunityFiltersComponent({ onFilterChange, initialFilters }: 
         </div>
 
         <div className="space-y-3">
+          <Label>Modalidad</Label>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="mod-presencial"
+                checked={(filters.modalities || []).includes("PRESENCIAL")}
+                onCheckedChange={() => handleModalityToggle("PRESENCIAL")}
+              />
+              <Label htmlFor="mod-presencial" className="text-sm font-normal cursor-pointer">
+                Presencial
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="mod-hibrido"
+                checked={(filters.modalities || []).includes("HÍBRIDO")}
+                onCheckedChange={() => handleModalityToggle("HÍBRIDO")}
+              />
+              <Label htmlFor="mod-hibrido" className="text-sm font-normal cursor-pointer">
+                Híbrido
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="mod-remoto"
+                checked={(filters.modalities || []).includes("REMOTO")}
+                onCheckedChange={() => handleModalityToggle("REMOTO")}
+              />
+              <Label htmlFor="mod-remoto" className="text-sm font-normal cursor-pointer">
+                Remoto
+              </Label>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
           <Label>Ubicación</Label>
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
@@ -151,16 +198,6 @@ export function OpportunityFiltersComponent({ onFilterChange, initialFilters }: 
               />
               <Label htmlFor="loc-heredia" className="text-sm font-normal cursor-pointer">
                 Heredia
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="loc-remote"
-                checked={filters.locations.includes("Remoto")}
-                onCheckedChange={() => handleLocationToggle("Remoto")}
-              />
-              <Label htmlFor="loc-remote" className="text-sm font-normal cursor-pointer">
-                Remoto
               </Label>
             </div>
           </div>

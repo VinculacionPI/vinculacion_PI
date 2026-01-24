@@ -162,7 +162,10 @@ export default function StudentDashboardPage() {
 
   const fetchCompanies = async () => {
     try {
-      const res = await fetch("/api/companies", { cache: "no-store" })
+      const res = await fetch("/api/companies", {
+        cache: "no-store",
+        credentials: "include",
+      })
       const json = await res.json()
       if (res.ok) setCompanies(json.data ?? [])
     } catch (e) {
@@ -181,6 +184,7 @@ export default function StudentDashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
+        credentials: "include",
         body: JSON.stringify({ opportunityIds: opps.map((o) => o.id) }),
       })
 
@@ -209,7 +213,10 @@ export default function StudentDashboardPage() {
       if (filters.duration) params.set("duration", filters.duration)
       if (filters.companyId) params.set("companyId", filters.companyId)
 
-      const res = await fetch(`/api/opportunities?${params.toString()}`, { cache: "no-store" })
+      const res = await fetch(`/api/opportunities?${params.toString()}`, {
+        cache: "no-store",
+        credentials: "include",
+      })
       const json = (await res.json()) as OpportunitiesApiResponse
 
       if (!res.ok) {
@@ -299,6 +306,7 @@ export default function StudentDashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ opportunityId: id }),
         cache: "no-store",
+        credentials: "include",
       })
 
       if (!res.ok) {

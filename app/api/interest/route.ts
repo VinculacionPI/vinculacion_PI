@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server"
-import { createServerSupabase } from "@/lib/supabase"
+import { NextRequest, NextResponse } from "next/server"
+import { createServerSupabase } from "@/lib/supabase/server"
 
-// UUID real que existe en auth.users
+// UUID real que existe en auth.users (si querés mantenerlo por ahora)
 const HARDCODE_STUDENT_ID = "16747327-4a61-42c5-9bc9-22004383a7b4"
 
-export async function POST(req: Request) {
-  const supabase = createServerSupabase()
+export async function POST(req: NextRequest) {
+  const supabase = await createServerSupabase()
 
   let body: any = null
   try {
@@ -17,10 +17,7 @@ export async function POST(req: Request) {
   const opportunityId = body?.opportunityId
 
   if (!opportunityId) {
-    return NextResponse.json(
-      { error: "MISSING_OPPORTUNITY_ID" },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: "MISSING_OPPORTUNITY_ID" }, { status: 400 })
   }
 
   const { error, data } = await supabase
@@ -33,7 +30,6 @@ export async function POST(req: Request) {
     .single()
 
   if (error) {
-    // LOG COMPLETO EN SERVIDOR
     console.error("ERROR INSERT INTEREST", {
       message: error.message,
       code: (error as any).code,
@@ -41,7 +37,6 @@ export async function POST(req: Request) {
       hint: (error as any).hint,
     })
 
-    // RESPUESTA COMPLETA AL CLIENTE (debug)
     return NextResponse.json(
       {
         error: error.message,
@@ -53,14 +48,11 @@ export async function POST(req: Request) {
     )
   }
 
-  return NextResponse.json({
-    ok: true,
-    data,
-  })
+  return NextResponse.json({ ok: true, data }, { status: 200 })
 }
 
-export async function DELETE(req: Request) {
-  const supabase = createServerSupabase()
+export async function DELETE(req: NextRequest) {
+  const supabase = await createServerSupabase()
 
   let body: any = null
   try {
@@ -72,10 +64,7 @@ export async function DELETE(req: Request) {
   const opportunityId = body?.opportunityId
 
   if (!opportunityId) {
-    return NextResponse.json(
-      { error: "MISSING_OPPORTUNITY_ID" },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: "MISSING_OPPORTUNITY_ID" }, { status: 400 })
   }
 
   const { error } = await supabase
@@ -103,5 +92,5 @@ export async function DELETE(req: Request) {
     )
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true }, { status: 200 })
 }

@@ -1,204 +1,493 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
+export const dynamic = 'force-dynamic'
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { StatsCard } from "@/components/shared/stats-card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { 
+  Plus, 
+  TrendingUp, 
+  Eye, 
+  CheckCircle2,
+  FileText,
+  Download,
+  Filter,
+  X
+} from "lucide-react"
+import Link from "next/link"
+import { obtenerDashboardEmpresa, obtenerOportunidadesEmpresa } from "@/lib/services/persona5-backend"
+import { DashboardStats } from "@/components/company/dashboard-stats"
 import { LoadingState } from "@/components/shared/loading-state"
-import { EmptyState } from "@/components/shared/empty-state"
-import { Plus, Briefcase, Eye, Clock, CheckCircle, XCircle, Edit, MoreVertical } from "lucide-react"
-import type { Opportunity } from "@/lib/types"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getCompanyIdFromUrl } from '@/lib/auth/get-current-user'
+
+
+interface Filters {
+  search: string
+  type: string
+  status: string
+  approvalStatus: string
+  dateFrom: string
+  dateTo: string
+}
 
 export default function CompanyDashboardPage() {
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([])
+  const router = useRouter()
+  
+  // Obtener empresa_id del URL
+  const empresaId = getCompanyIdFromUrl()
+
+  const [opportunities, setOpportunities] = useState<any[]>([])
+  const [filteredOpportunities, setFilteredOpportunities] = useState<any[]>([])
+  const [dashboardData, setDashboardData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("all")
+  const [activeTab, setActiveTab] = useState('all')
+  const [filters, setFilters] = useState<Filters>({
+    search: '',
+    type: 'all',
+    status: 'all',
+    approvalStatus: 'all',
+    dateFrom: '',
+    dateTo: ''
+  })
 
   useEffect(() => {
-    fetchCompanyOpportunities()
-  }, [])
+    if (empresaId) {
+      loadDashboardData()
+      loadOpportunities()
+    }
+  }, [empresaId])
 
-  const fetchCompanyOpportunities = async () => {
+  useEffect(() => {
+    applyFilters()
+  }, [opportunities, filters, activeTab])
+
+  const loadDashboardData = async () => {
+    try {
+      const response = await obtenerDashboardEmpresa(empresaId!, 30)
+      if (response.success) {
+        setDashboardData(response.data)
+      }
+    } catch (err) {
+      console.error('Error cargando dashboard:', err)
+    }
+  }
+
+  const loadOpportunities = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch("/api/company/opportunities")
-      const data = await response.json()
+      const data = await obtenerOportunidadesEmpresa(empresaId!)
       setOpportunities(data)
-    } catch (error) {
-      console.error("[v0] Error fetching company opportunities:", error)
+      const filtered = data.filter((opp: any) => 
+        activeTab === 'all' || 
+        (activeTab === 'active' && opp.status === 'OPEN') ||
+        (activeTab === 'inactive' && opp.status === 'CLOSED')
+      )
+      setFilteredOpportunities(filtered)
+    } catch (err) {
+      console.error('Error cargando oportunidades:', err)
+      setOpportunities([])
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleDeactivate = async (id: string) => {
-    // TODO: Implement deactivation API call
-    console.log("[v0] Deactivating opportunity:", id)
+  const applyFilters = () => {
+    let filtered = [...opportunities]
+
+    // Filtro por tab activo
+    if (activeTab === 'active') {
+      filtered = filtered.filter(opp => opp.status === 'OPEN')
+    } else if (activeTab === 'inactive') {
+      filtered = filtered.filter(opp => opp.status === 'CLOSED')
+    } else if (activeTab === 'approved') {
+      filtered = filtered.filter(opp => opp.approval_status === 'APPROVED')
+    } else if (activeTab === 'rejected') {
+      filtered = filtered.filter(opp => opp.approval_status === 'REJECTED')
+    }
+
+    // Búsqueda
+    if (filters.search) {
+      filtered = filtered.filter(opp =>
+        opp.title?.toLowerCase().includes(filters.search.toLowerCase()) ||
+        opp.description?.toLowerCase().includes(filters.search.toLowerCase())
+      )
+    }
+
+    // Tipo
+    if (filters.type !== 'all') {
+      filtered = filtered.filter(opp => opp.type === filters.type)
+    }
+
+    // Estado
+    if (filters.status !== 'all') {
+      filtered = filtered.filter(opp => opp.status === filters.status)
+    }
+
+    // Estado de aprobación
+    if (filters.approvalStatus !== 'all') {
+      filtered = filtered.filter(opp => opp.approval_status === filters.approvalStatus)
+    }
+
+    // Fechas
+    if (filters.dateFrom) {
+      filtered = filtered.filter(opp => 
+        new Date(opp.created_at) >= new Date(filters.dateFrom)
+      )
+    }
+
+    if (filters.dateTo) {
+      filtered = filtered.filter(opp => 
+        new Date(opp.created_at) <= new Date(filters.dateTo)
+      )
+    }
+
+    setFilteredOpportunities(filtered)
   }
 
-  const handleDelete = async (id: string) => {
-    // TODO: Implement delete API call
-    console.log("[v0] Deleting opportunity:", id)
+  const clearFilters = () => {
+    setFilters({
+      search: '',
+      type: 'all',
+      status: 'all',
+      approvalStatus: 'all',
+      dateFrom: '',
+      dateTo: ''
+    })
   }
 
-  const filteredOpportunities = opportunities.filter((opp) => {
-    if (activeTab === "all") return true
-    if (activeTab === "active") return opp.status === "active" || opp.status === "approved"
-    if (activeTab === "pending") return opp.status === "pending"
-    if (activeTab === "inactive") return opp.status === "inactive" || opp.status === "rejected"
-    return true
-  })
+  const hasActiveFilters = filters.search || 
+    filters.type !== 'all' || 
+    filters.status !== 'all' ||
+    filters.approvalStatus !== 'all' ||
+    filters.dateFrom ||
+    filters.dateTo
+
+  const handleExport = (format: 'CSV' | 'JSON') => {
+    const dataToExport = filteredOpportunities.map(opp => ({
+      id: opp.id,
+      title: opp.title,
+      type: opp.type,
+      status: opp.status,
+      approval_status: opp.approval_status,
+      created_at: new Date(opp.created_at).toLocaleDateString('es-CR')
+    }))
+
+    if (format === 'CSV') {
+      const headers = ['ID', 'Título', 'Tipo', 'Estado', 'Aprobación', 'Fecha']
+      const csv = [
+        headers.join(','),
+        ...dataToExport.map(row => 
+          [row.id, row.title, row.type, row.status, row.approval_status, row.created_at].join(',')
+        )
+      ].join('\n')
+      
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `oportunidades-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+    } else {
+      const json = JSON.stringify(dataToExport, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `oportunidades-${new Date().toISOString().split('T')[0]}.json`
+      a.click()
+    }
+  }
 
   const stats = {
     total: opportunities.length,
-    active: opportunities.filter((o) => o.status === "active" || o.status === "approved").length,
-    pending: opportunities.filter((o) => o.status === "pending").length,
-    views: 1234, // Mock data
-  }
-
-  const statusColors = {
-    pending: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
-    approved: "bg-green-500/10 text-green-700 dark:text-green-400",
-    active: "bg-green-500/10 text-green-700 dark:text-green-400",
-    rejected: "bg-red-500/10 text-red-700 dark:text-red-400",
-    inactive: "bg-gray-500/10 text-gray-700 dark:text-gray-400",
-  }
-
-  const statusLabels = {
-    pending: "Pendiente",
-    approved: "Aprobado",
-    active: "Activo",
-    rejected: "Rechazado",
-    inactive: "Inactivo",
+    active: opportunities.filter(o => o.status === 'OPEN').length,
+    pending: opportunities.filter(o => o.approval_status === 'PENDING').length,
+    views: dashboardData?.metricas_generales?.total_visualizaciones || 0
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Mis Oportunidades</h1>
-          <p className="text-muted-foreground">Gestiona las oportunidades publicadas por tu empresa</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard Empresarial</h1>
+          <p className="text-muted-foreground">Gestiona tus oportunidades y visualiza métricas</p>
         </div>
-        <Link href="/dashboard/company/opportunities/new">
-          <Button size="lg">
+        <Link href={`/dashboard/company/opportunities/new?empresa_id=${empresaId}`}>
+          <Button>
             <Plus className="h-4 w-4 mr-2" />
             Nueva Oportunidad
           </Button>
         </Link>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatsCard title="Total Publicadas" value={stats.total} icon={Briefcase} />
-        <StatsCard title="Activas" value={stats.active} icon={CheckCircle} />
-        <StatsCard title="Pendientes Aprobación" value={stats.pending} icon={Clock} />
-        <StatsCard title="Visualizaciones" value={stats.views} icon={Eye} description="En los últimos 30 días" />
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4 mb-8">
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setActiveTab('all')}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Publicadas</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <p className="text-xs text-muted-foreground">Click para ver todas</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setActiveTab('active')}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Activas</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+            <p className="text-xs text-muted-foreground">Click para filtrar</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            <p className="text-xs text-muted-foreground">Esperando aprobación</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Visualizaciones Totales</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.views}</div>
+            <p className="text-xs text-muted-foreground">Últimos 30 días</p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Filters */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Filtros</CardTitle>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => handleExport('CSV')}>
+                <Download className="h-4 w-4 mr-1" />
+                Descargar CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleExport('JSON')}>
+                <Download className="h-4 w-4 mr-1" />
+                Descargar JSON
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Búsqueda</Label>
+              <Input
+                placeholder="Buscar por título o descripción..."
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={filters.type} onValueChange={(value) => setFilters({ ...filters, type: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="TFG">Proyecto</SelectItem>
+                  <SelectItem value="PASANTIA">Pasantía</SelectItem>
+                  <SelectItem value="EMPLEO">Empleo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Estado</Label>
+              <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="OPEN">Activos</SelectItem>
+                  <SelectItem value="CLOSED">Inactivos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Fecha Desde</Label>
+              <Input
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Fecha Hasta</Label>
+              <Input
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Aprobación</Label>
+              <Select value={filters.approvalStatus} onValueChange={(value) => setFilters({ ...filters, approvalStatus: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="PENDING">Pendientes</SelectItem>
+                  <SelectItem value="APPROVED">Aprobadas</SelectItem>
+                  <SelectItem value="REJECTED">Rechazadas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="mt-4">
+              <X className="h-4 w-4 mr-1" />
+              Limpiar
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-        <TabsList>
-          <TabsTrigger value="all">Todas ({opportunities.length})</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="all">Oportunidades ({opportunities.length})</TabsTrigger>
           <TabsTrigger value="active">Activas ({stats.active})</TabsTrigger>
-          <TabsTrigger value="pending">Pendientes ({stats.pending})</TabsTrigger>
-          <TabsTrigger value="inactive">Inactivas</TabsTrigger>
+          <TabsTrigger value="inactive">Inactivas ({opportunities.length - stats.active})</TabsTrigger>
+          <TabsTrigger value="approved">Aprobadas ({opportunities.filter(o => o.approval_status === 'APPROVED').length})</TabsTrigger>
+          <TabsTrigger value="rejected">Rechazadas ({opportunities.filter(o => o.approval_status === 'REJECTED').length})</TabsTrigger>
+          <TabsTrigger value="metrics">Métricas</TabsTrigger>
         </TabsList>
-      </Tabs>
 
-      {/* Opportunities List */}
-      {isLoading ? (
-        <LoadingState message="Cargando oportunidades..." />
-      ) : filteredOpportunities.length === 0 ? (
-        <EmptyState
-          icon={Briefcase}
-          title="No tienes oportunidades"
-          description="Comienza a publicar oportunidades para atraer talento del TEC."
-          actionLabel="Crear Primera Oportunidad"
-          onAction={() => (window.location.href = "/dashboard/company/opportunities/new")}
-        />
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredOpportunities.map((opportunity) => (
-            <Card key={opportunity.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg mb-2">{opportunity.title}</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{opportunity.type}</Badge>
-                      <Badge variant="outline" className={statusColors[opportunity.status]}>
-                        {statusLabels[opportunity.status]}
-                      </Badge>
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical className="h-4 w-4" />
-                        <span className="sr-only">Opciones</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link href={`/dashboard/company/opportunities/${opportunity.id}/edit`}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Editar
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`/opportunities/${opportunity.id}`}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Ver Detalles
-                        </Link>
-                      </DropdownMenuItem>
-                      {(opportunity.status === "active" || opportunity.status === "approved") && (
-                        <DropdownMenuItem onClick={() => handleDeactivate(opportunity.id)}>
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Desactivar
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem onClick={() => handleDelete(opportunity.id)} className="text-destructive">
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <CardDescription className="line-clamp-3">{opportunity.description}</CardDescription>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mt-4">
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {opportunity.postedAt}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Eye className="h-3 w-3" />
-                    {Math.floor(Math.random() * 200)} vistas
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="gap-2">
-                <Link href={`/dashboard/company/opportunities/${opportunity.id}/edit`} className="flex-1">
-                  <Button variant="outline" className="w-full bg-transparent">
-                    <Edit className="h-4 w-4 mr-2" />
-                    Editar
-                  </Button>
-                </Link>
-                <Link href={`/opportunities/${opportunity.id}`} className="flex-1">
-                  <Button variant="outline" className="w-full bg-transparent">
-                    <Eye className="h-4 w-4 mr-2" />
-                    Ver
-                  </Button>
-                </Link>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+        <TabsContent value="all">
+          {isLoading ? (
+            <LoadingState />
+          ) : (
+            <OpportunitiesList opportunities={filteredOpportunities} empresaId={empresaId!} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="active">
+          {isLoading ? (
+            <LoadingState />
+          ) : (
+            <OpportunitiesList opportunities={filteredOpportunities} empresaId={empresaId!} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="inactive">
+          {isLoading ? (
+            <LoadingState />
+          ) : (
+            <OpportunitiesList opportunities={filteredOpportunities} empresaId={empresaId!} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="approved">
+          {isLoading ? (
+            <LoadingState />
+          ) : (
+            <OpportunitiesList opportunities={filteredOpportunities} empresaId={empresaId!} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="rejected">
+          {isLoading ? (
+            <LoadingState />
+          ) : (
+            <OpportunitiesList opportunities={filteredOpportunities} empresaId={empresaId!} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="metrics">
+          {dashboardData ? (
+            <DashboardStats data={dashboardData} />
+          ) : (
+            <LoadingState message="Cargando métricas..." />
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+
+function OpportunitiesList({ opportunities, empresaId }: { opportunities: any[], empresaId: string }) {
+  if (opportunities.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-16 text-center">
+          <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">No hay oportunidades</h3>
+          <p className="text-muted-foreground mb-4">Comienza creando tu primera oportunidad</p>
+          <Link href={`/dashboard/company/opportunities/new?empresa_id=${empresaId}`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Nueva Oportunidad
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="grid gap-4">
+      {opportunities.map((opp) => (
+        <Card key={opp.id}>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <CardTitle className="text-lg">{opp.title}</CardTitle>
+                <CardDescription className="mt-2">{opp.description?.substring(0, 150)}...</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Badge variant={opp.status === 'OPEN' ? 'default' : 'secondary'}>
+                  {opp.status === 'OPEN' ? 'Activo' : 'Inactivo'}
+                </Badge>
+                <Badge variant={opp.approval_status === 'APPROVED' ? 'default' : opp.approval_status === 'PENDING' ? 'secondary' : 'destructive'}>
+                  {opp.approval_status === 'APPROVED' ? 'Aprobado' : opp.approval_status === 'PENDING' ? 'Pendiente' : 'Rechazado'}
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                {new Date(opp.created_at).toLocaleDateString('es-CR')}
+              </div>
+              <Link href={`/dashboard/company/opportunities/${opp.id}/edit?empresa_id=${empresaId}`}>
+                <Button variant="outline" size="sm">Ver Detalles</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   )
 }

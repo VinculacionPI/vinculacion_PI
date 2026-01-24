@@ -54,12 +54,15 @@ export default function StudentInterestsPage() {
       if (q.trim()) params.set("q", q.trim())
       if (status) params.set("status", status)
 
-      const res = await fetch(`/api/my-interests?${params.toString()}`, { cache: "no-store" })
+      const res = await fetch(`/api/my-interests?${params.toString()}`, {
+        cache: "no-store",
+        credentials: "include",
+      })
 
       const json = (await res.json()) as InterestsApiResponse
 
       if (!res.ok) {
-        console.error("API /api/interests error:", json)
+        console.error("API /api/my-interests error:", json)
         setItems([])
         setTotalPages(1)
         return
@@ -94,11 +97,12 @@ export default function StudentInterestsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ opportunityId }),
       cache: "no-store",
+      credentials: "include",
     })
 
     if (!res.ok) {
       const j = await res.json().catch(() => ({}))
-      alert(j?.error ?? "No se pudo retirar el interés.")
+      alert((j as any)?.error ?? "No se pudo retirar el interés.")
       return
     }
 
@@ -164,7 +168,10 @@ export default function StudentInterestsPage() {
             const isActive = statusNorm === "ACTIVE"
 
             return (
-              <div key={it.interestId} className="rounded-lg border p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div
+                key={it.interestId}
+                className="rounded-lg border p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+              >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium truncate">{opp.title}</p>
@@ -184,9 +191,7 @@ export default function StudentInterestsPage() {
                   </p>
 
                   {!isActive ? (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Esta publicación no está activa. Acciones bloqueadas.
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Esta publicación no está activa. Acciones bloqueadas.</p>
                   ) : null}
                 </div>
 

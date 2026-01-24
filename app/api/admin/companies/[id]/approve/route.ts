@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createServerSupabase } from "@/lib/supabase"
+import { createServerSupabase } from "@/lib/supabase/server"
 
 function isDev() {
   return process.env.NODE_ENV !== "production"
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { id } = await ctx.params
 
   const { data: auth } = await supabase.auth.getUser()
@@ -25,14 +25,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data, error } = await supabase
     .from("OPPORTUNITY")
-    .update({ approval_status: "APPROVED" })
+    .update({
+      approval_status: "Aprobado",
+      lifecycle_status: "Activo",
+    })
     .eq("id", id)
-    .select("id,title,approval_status,company_id,created_at")
+    .select("id,title,approval_status,company_id,created_at,lifecycle_status")
     .single()
 
-  if (error) {
+  if (error || !data) {
     return NextResponse.json(
-      { message: "Error al aprobar oportunidad", detail: error.message },
+      { message: "Error al aprobar oportunidad", detail: error?.message },
       { status: 500 }
     )
   }
@@ -40,11 +43,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   await supabase.from("AUDIT_LOG").insert({
     action: "APPROVE",
     entity: "OPPORTUNITY",
-    entity_id: id,
+    entity_id: data.id,
     company_id: data.company_id,
     user_id: userId,
-    details: { approval_status: "APPROVED" },
+    details: {
+      approval_status: data.approval_status,
+      title: data.title,
+    },
   })
 
-  return NextResponse.json({ message: "Oportunidad aprobada", opportunity: data }, { status: 200 })
+  return NextResponse.json(
+    { message: "Oportunidad aprobada", opportunity: data },
+    { status: 200 }
+  )
 }
