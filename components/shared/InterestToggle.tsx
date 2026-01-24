@@ -1,73 +1,138 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import type React from "react"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Building2, MapPin, Clock, Bookmark, ExternalLink } from "lucide-react"
 
-export function InterestToggle({
-  opportunityId,
-  lifecycleStatus,
-  initialInterested,
-  onChanged,
-}: {
-  opportunityId: string
-  lifecycleStatus: string | null
-  initialInterested: boolean
-  onChanged?: (v: boolean) => void
-}) {
-  const [interested, setInterested] = useState(initialInterested)
-  const [loading, setLoading] = useState(false)
+export interface Opportunity {
+  id: string
+  title: string
+  company: string
+  location: string
+  type: "internship" | "graduation-project" | "job"
+  description: string
+  postedAt: string
+  lifecycle_status?: string | null
+}
 
-  const isActive = lifecycleStatus === "ACTIVE"
+interface OpportunityCardProps {
+  opportunity: Opportunity
+  isInterested: boolean
+  onInterestToggle: (id: string, next: boolean) => void
+}
 
-  const toggle = async () => {
+export function OpportunityCard({
+  opportunity,
+  isInterested,
+  onInterestToggle,
+}: OpportunityCardProps) {
+  const router = useRouter()
+
+  // ✅ no bloquea si no viene lifecycle_status
+  const norm = (s?: string | null) => (s ?? "").trim().toUpperCase()
+  const isActive = ["ACTIVE", "ACTIVO"].includes(norm(opportunity.lifecycle_status))
+
+  const handleToggle = (e: React.MouseEvent) => {
+    // evita cualquier click bubbling raro
+    e.preventDefault()
+    e.stopPropagation()
+
     if (!isActive) {
       alert("Esta publicación no está activa.")
       return
     }
 
     const ok = window.confirm(
-      interested
+      isInterested
         ? "¿Confirmas que deseas retirar tu manifestación de interés?"
         : "¿Confirmas que deseas manifestar interés en esta publicación?"
     )
     if (!ok) return
 
-    setLoading(true)
-    try {
-      const res = await fetch("/api/interest", {
-        method: interested ? "DELETE" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ opportunityId }),
-      })
-
-      if (!res.ok) {
-        const json = await res.json()
-        if (json.error === "DUPLICATE") alert("Ya manifestaste interés.")
-        else if (json.error === "INACTIVE") alert("Publicación no activa.")
-        else if (res.status === 401) alert("Debes iniciar sesión.")
-        else alert("Error al procesar la acción.")
-        return
-      }
-
-      const next = !interested
-      setInterested(next)
-      onChanged?.(next)
-    } finally {
-      setLoading(false)
-    }
+    onInterestToggle(opportunity.id, !isInterested)
   }
 
   return (
-    <button
-      onClick={toggle}
-      disabled={loading || !isActive}
-      className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
-      title={!isActive ? "Publicación no activa" : undefined}
-    >
-      {loading
-        ? "Procesando..."
-        : interested
-        ? "Retirar interés"
-        : "Manifestar interés"}
-    </button>
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1">
+            <CardTitle className="text-lg mb-1">{opportunity.title}</CardTitle>
+            <CardDescription className="flex items-center gap-1">
+              <Building2 className="h-3 w-3" />
+              {opportunity.company}
+            </CardDescription>
+          </div>
+
+          {/* ⭐ BOOKMARK = INTERÉS */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleToggle}
+            disabled={!isActive}
+            className={[
+              "h-9 w-9",
+              isInterested ? "text-accent" : "text-muted-foreground",
+              !isActive ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+            ].join(" ")}
+            type="button"
+            title={
+              isActive
+                ? isInterested
+                  ? "Retirar interés"
+                  : "Manifestar interés"
+                : "Publicación no activa"
+            }
+          >
+            {/* ✅ el SVG no debe capturar clicks */}
+            <Bookmark className={`h-4 w-4 pointer-events-none ${isInterested ? "fill-current" : ""}`} />
+            <span className="sr-only">
+              {isInterested ? "Retirar interés" : "Manifestar interés"}
+            </span>
+          </Button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="secondary">{opportunity.type}</Badge>
+        </div>
+
+        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <MapPin className="h-3 w-3" />
+            {opportunity.location}
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {opportunity.postedAt}
+          </div>
+        </div>
+
+        <p className="text-sm line-clamp-3">{opportunity.description}</p>
+      </CardContent>
+
+      <CardFooter>
+        <Button
+          variant="outline"
+          className="w-full bg-transparent"
+          onClick={() => router.push(`/dashboard/student/opportunities/${opportunity.id}`)}
+          type="button"
+        >
+          Ver Detalles
+          <ExternalLink className="ml-2 h-4 w-4" />
+        </Button>
+      </CardFooter>
+    </Card>
   )
 }

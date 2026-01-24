@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Download, Bookmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -11,13 +11,30 @@ type OpportunityDetail = {
   title: string
   description: string | null
   mode: string | null
-  duration_estimated: string | null
+
+  // desde INTERNSHIP
+  duration_estimated: string | null      
+  internship_duration: any | null        
+  remuneration: number | null            
+
   requirements: string | null
   contact_info: string | null
+
+  // Estado actual (OPEN/CLOSED) + publicación (ACTIVE/INACTIVE)
+  status: string | null
   lifecycle_status: string | null
+
   created_at: string
   company: string | null
   flyerUrl: string | null
+}
+
+function formatIntervalLike(v: any): string {
+  if (v == null) return ""
+  // Supabase/Postgres interval suele llegar como string; si llega objeto, lo hacemos string.
+  const s = String(v).trim()
+  if (!s) return ""
+  return s
 }
 
 export default function OpportunityDetailPage() {
@@ -75,11 +92,16 @@ export default function OpportunityDetailPage() {
     loadInterest()
   }, [id])
 
+  const canInteract = useMemo(() => {
+    if (!data) return false
+    return data.lifecycle_status === "ACTIVE" && data.status === "OPEN"
+  }, [data])
+
   const toggleInterest = async () => {
     if (!data) return
-    const isActive = data.lifecycle_status === "ACTIVE"
-    if (!isActive) {
-      alert("Esta publicación no está activa.")
+
+    if (!canInteract) {
+      alert("Esta publicación no está disponible para manifestar interés.")
       return
     }
 
@@ -122,7 +144,10 @@ export default function OpportunityDetailPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="rounded-lg border p-6 space-y-4">
           <p className="font-medium">No se encontró la oportunidad.</p>
-          <Link href="/dashboard/student/opportunities" className="inline-flex items-center gap-2 underline">
+          <Link
+            href="/dashboard/student/opportunities"
+            className="inline-flex items-center gap-2 underline"
+          >
             <ArrowLeft className="h-4 w-4" />
             Volver al listado
           </Link>
@@ -131,20 +156,29 @@ export default function OpportunityDetailPage() {
     )
   }
 
-  const isActive = data.lifecycle_status === "ACTIVE"
+  const intervalText = formatIntervalLike(data.internship_duration)
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <Link href="/dashboard/student/opportunities" className="inline-flex items-center gap-2 underline">
+        <Link
+          href="/dashboard/student/opportunities"
+          className="inline-flex items-center gap-2 underline"
+        >
           <ArrowLeft className="h-4 w-4" />
           Volver
         </Link>
 
         <div className="flex items-center gap-2">
-          {/* ⭐ BOOKMARK = INTERÉS */}
+          {/* BOOKMARK = INTERÉS */}
           {interestLoading ? (
-            <Button variant="ghost" size="icon" disabled className="text-muted-foreground opacity-60" type="button">
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled
+              className="text-muted-foreground opacity-60"
+              type="button"
+            >
               <Bookmark className="h-4 w-4" />
             </Button>
           ) : (
@@ -152,7 +186,7 @@ export default function OpportunityDetailPage() {
               variant="ghost"
               size="icon"
               onClick={toggleInterest}
-              disabled={!isActive}
+              disabled={!canInteract}
               className={interested ? "text-accent" : "text-muted-foreground"}
               type="button"
               title={interested ? "Retirar interés" : "Manifestar interés"}
@@ -180,10 +214,12 @@ export default function OpportunityDetailPage() {
         <div>
           <h1 className="text-2xl font-bold">{data.title}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Empresa: {data.company ?? "No especificada"} · Estado: {data.lifecycle_status ?? "—"}
+            Empresa: {data.company ?? "No especificada"} · Estado: {data.status ?? "—"}
+            {data.lifecycle_status ? ` · Publicación: ${data.lifecycle_status}` : ""}
           </p>
         </div>
 
+        {/* Top info cards */}
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-md border p-4">
             <p className="text-sm font-medium">Modalidad</p>
@@ -192,13 +228,31 @@ export default function OpportunityDetailPage() {
 
           <div className="rounded-md border p-4">
             <p className="text-sm font-medium">Duración estimada</p>
-            <p className="text-sm text-muted-foreground mt-1">{data.duration_estimated ?? "No especificada"}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {data.duration_estimated ? data.duration_estimated : "No especificada"}
+            </p>
+          </div>
+
+          <div className="rounded-md border p-4">
+            <p className="text-sm font-medium">Duración (interval)</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {intervalText ? intervalText : "No especificada"}
+            </p>
+          </div>
+
+          <div className="rounded-md border p-4">
+            <p className="text-sm font-medium">Remuneración</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {data.remuneration != null ? String(data.remuneration) : "No especificada"}
+            </p>
           </div>
         </div>
 
         <div className="rounded-md border p-4">
           <p className="text-sm font-medium">Descripción</p>
-          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{data.description ?? ""}</p>
+          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
+            {data.description ?? ""}
+          </p>
         </div>
 
         <div className="rounded-md border p-4">
@@ -214,6 +268,15 @@ export default function OpportunityDetailPage() {
             {data.contact_info ?? "No especificada"}
           </p>
         </div>
+
+        {!canInteract ? (
+          <div className="rounded-md border p-4">
+            <p className="text-sm font-medium">Manifestación de interés</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Esta publicación no permite manifestar interés porque no está <b>ACTIVE</b> y <b>OPEN</b>.
+            </p>
+          </div>
+        ) : null}
       </div>
     </div>
   )

@@ -5,18 +5,41 @@ function isDev() {
   return process.env.NODE_ENV !== "production"
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const { supabase, res } = createRouteSupabase(req)
+/**
+ * Copia TODOS los Set-Cookie que haya generado Supabase (refresh de sesión, etc.)
+ * Next a veces devuelve múltiples cookies, y .get("set-cookie") solo trae una.
+ */
+function copySetCookies(from: Headers, to: Headers) {
+  // Next/Undici soporta getSetCookie() en muchos entornos
+  const anyFrom = from as any
 
+  if (typeof anyFrom.getSetCookie === "function") {
+    const cookies: string[] = anyFrom.getSetCookie()
+    for (const c of cookies) to.append("set-cookie", c)
+    return
+  }
+
+  // Fallback: si solo existe get("set-cookie")
+  const single = from.get("set-cookie")
+  if (single) to.set("set-cookie", single)
+}
+
+export async function POST(req: NextRequest) {
+  const { supabase, res } = createRouteSupabase(req)
+
+  try {
     const body = await req.json().catch(() => null)
     const opportunityIds: string[] = body?.opportunityIds ?? []
 
-    if (!Array.isArray(opportunityIds) || opportunityIds.length === 0) {
-      const out = NextResponse.json({ interestedIds: [] }, { status: 200 })
-      const setCookie = res.headers.get("set-cookie")
-      if (setCookie) out.headers.set("set-cookie", setCookie)
+    // Respuesta helper que siempre copia cookies
+    const respond = (json: any, init?: ResponseInit) => {
+      const out = NextResponse.json(json, init)
+      copySetCookies(res.headers, out.headers)
       return out
+    }
+
+    if (!Array.isArray(opportunityIds) || opportunityIds.length === 0) {
+      return respond({ interestedIds: [] }, { status: 200 })
     }
 
     // 1) user real o fallback DEV
@@ -27,10 +50,7 @@ export async function POST(req: NextRequest) {
     if (!userId && isDev()) userId = process.env.DEV_USER_ID ?? null
 
     if (!userId) {
-      const out = NextResponse.json({ message: "No autenticado" }, { status: 401 })
-      const setCookie = res.headers.get("set-cookie")
-      if (setCookie) out.headers.set("set-cookie", setCookie)
-      return out
+      return respond({ message: "No autenticado" }, { status: 401 })
     }
 
     // 2) query interests
@@ -42,24 +62,19 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error("interest/batch error:", error)
-      const out = NextResponse.json({ interestedIds: [] }, { status: 200 })
-      const setCookie = res.headers.get("set-cookie")
-      if (setCookie) out.headers.set("set-cookie", setCookie)
-      return out
+      // no rompas la UI, solo devolvé vacío
+      return respond({ interestedIds: [] }, { status: 200 })
     }
 
-    const out = NextResponse.json(
+    return respond(
       { interestedIds: (data ?? []).map((r: any) => r.opportunity_id) },
       { status: 200 }
     )
-
-    // Pasar Set-Cookie si Supabase actualizó tokens
-    const setCookie = res.headers.get("set-cookie")
-    if (setCookie) out.headers.set("set-cookie", setCookie)
-
-    return out
   } catch (e) {
     console.error("interest/batch crash:", e)
-    return NextResponse.json({ interestedIds: [] }, { status: 200 })
+    // no rompas la UI
+    const out = NextResponse.json({ interestedIds: [] }, { status: 200 })
+    copySetCookies(res.headers, out.headers)
+    return out
   }
 }

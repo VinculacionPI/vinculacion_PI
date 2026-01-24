@@ -12,6 +12,8 @@ type InterestListItem = {
     title: string
     type: string | null
     lifecycle_status: string | null
+    approval_status?: string | null
+    status?: string | null
     created_at: string
     company: string
   }
@@ -25,6 +27,7 @@ type InterestsApiResponse = {
 }
 
 const ITEMS_PER_PAGE = 12
+const norm = (s?: string | null) => (s ?? "").trim().toUpperCase()
 
 function formatDate(iso: string) {
   try {
@@ -35,6 +38,23 @@ function formatDate(iso: string) {
   }
 }
 
+function statusLabel(v?: string | null) {
+  const s = norm(v)
+  if (!s) return "—"
+  if (s === "ACTIVE") return "ACTIVE"
+  if (s === "INACTIVE") return "INACTIVE"
+  return s
+}
+
+function approvalLabel(v?: string | null) {
+  const s = norm(v)
+  if (!s) return "—"
+  if (s === "APPROVED") return "APPROVED"
+  if (s === "PENDING") return "PENDING"
+  if (s === "REJECTED") return "REJECTED"
+  return s
+}
+
 export default function StudentInterestsPage() {
   const [items, setItems] = useState<InterestListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,7 +63,8 @@ export default function StudentInterestsPage() {
   const [totalPages, setTotalPages] = useState(1)
 
   const [q, setQ] = useState("")
-  const [status, setStatus] = useState("")
+  const [lifecycle, setLifecycle] = useState("") // ACTIVE / INACTIVE
+  const [approval, setApproval] = useState("") // APPROVED / PENDING / REJECTED
 
   const fetchInterests = async () => {
     setLoading(true)
@@ -52,7 +73,9 @@ export default function StudentInterestsPage() {
       params.set("page", String(page))
       params.set("pageSize", String(ITEMS_PER_PAGE))
       if (q.trim()) params.set("q", q.trim())
-      if (status) params.set("status", status)
+
+      // backend actual solo entiende "status" como lifecycle_status
+      if (lifecycle) params.set("status", lifecycle)
 
       const res = await fetch(`/api/my-interests?${params.toString()}`, {
         cache: "no-store",
@@ -68,7 +91,13 @@ export default function StudentInterestsPage() {
         return
       }
 
-      setItems(json.data ?? [])
+      // filtro local por approval_status (porque el API todavía no lo filtra)
+      const data = (json.data ?? []).filter((it) => {
+        if (!approval) return true
+        return norm(it.opportunity.approval_status) === approval
+      })
+
+      setItems(data)
       setTotalPages(json.totalPages ?? 1)
     } catch (e) {
       console.error("Error fetching interests:", e)
@@ -82,11 +111,11 @@ export default function StudentInterestsPage() {
   useEffect(() => {
     fetchInterests()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, q, status])
+  }, [page, q, lifecycle, approval])
 
   useEffect(() => {
     setPage(1)
-  }, [q, status])
+  }, [q, lifecycle, approval])
 
   const onRemove = async (opportunityId: string) => {
     const ok = window.confirm("¿Confirmas que deseas retirar tu manifestación de interés?")
@@ -106,14 +135,13 @@ export default function StudentInterestsPage() {
       return
     }
 
-    // refresco rápido: remover del estado local
     setItems((prev) => prev.filter((x) => x.opportunity.id !== opportunityId))
   }
 
   const emptyText = useMemo(() => {
-    if (q.trim() || status) return "No hay resultados con esos filtros."
+    if (q.trim() || lifecycle || approval) return "No hay resultados con esos filtros."
     return "Aún no has manifestado interés en oportunidades."
-  }, [q, status])
+  }, [q, lifecycle, approval])
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -126,7 +154,7 @@ export default function StudentInterestsPage() {
         <h1 className="text-2xl font-bold">Mis Intereses</h1>
       </div>
 
-      <div className="rounded-lg border p-4 mb-6 grid gap-3 md:grid-cols-3">
+      <div className="rounded-lg border p-4 mb-6 grid gap-3 md:grid-cols-4">
         <div className="md:col-span-2">
           <label className="text-sm font-medium">Buscar</label>
           <div className="mt-1 flex items-center gap-2 rounded-md border px-3 py-2">
@@ -141,18 +169,32 @@ export default function StudentInterestsPage() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Estado</label>
+          <label className="text-sm font-medium">Lifecycle</label>
           <select
             className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
+            value={lifecycle}
+            onChange={(e) => setLifecycle(e.target.value)}
           >
             <option value="">Todos</option>
-            <option value="ACTIVE">Activas</option>
-            <option value="CANCELED">Canceladas</option>
-            <option value="CONCRETED">Concretadas</option>
+            <option value="ACTIVE">ACTIVE</option>
+            <option value="INACTIVE">INACTIVE</option>
           </select>
-          <p className="mt-1 text-xs text-muted-foreground">Depende de tus valores reales en lifecycle_status.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Filtra por lifecycle_status.</p>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium">Aprobación</label>
+          <select
+            className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+            value={approval}
+            onChange={(e) => setApproval(e.target.value)}
+          >
+            <option value="">Todas</option>
+            <option value="APPROVED">APPROVED</option>
+            <option value="PENDING">PENDING</option>
+            <option value="REJECTED">REJECTED</option>
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">Filtra por approval_status.</p>
         </div>
       </div>
 
@@ -164,8 +206,13 @@ export default function StudentInterestsPage() {
         <div className="grid gap-4">
           {items.map((it) => {
             const opp = it.opportunity
-            const statusNorm = (opp.lifecycle_status ?? "").toUpperCase()
-            const isActive = statusNorm === "ACTIVE"
+
+            const lifecycleNorm = norm(opp.lifecycle_status)
+            const approvalNorm = norm(opp.approval_status)
+            const statusNorm = norm(opp.status)
+
+            const visibleToStudent =
+              lifecycleNorm === "ACTIVE" && statusNorm === "OPEN" && approvalNorm === "APPROVED"
 
             return (
               <div
@@ -175,23 +222,36 @@ export default function StudentInterestsPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium truncate">{opp.title}</p>
+
+                    <span className="text-xs rounded-full border px-2 py-0.5" title="approval_status">
+                      {approvalLabel(opp.approval_status)}
+                    </span>
+
                     <span
                       className={[
                         "text-xs rounded-full border px-2 py-0.5",
-                        statusNorm === "ACTIVE" ? "" : "opacity-80",
+                        lifecycleNorm === "ACTIVE" ? "" : "opacity-80",
                       ].join(" ")}
-                      title="Estado de la publicación"
+                      title="lifecycle_status"
                     >
-                      {opp.lifecycle_status ?? "—"}
+                      {statusLabel(opp.lifecycle_status)}
                     </span>
+
+                    {opp.status ? (
+                      <span className="text-xs rounded-full border px-2 py-0.5" title="status">
+                        {norm(opp.status)}
+                      </span>
+                    ) : null}
                   </div>
 
                   <p className="text-sm text-muted-foreground mt-1">
                     Empresa: {opp.company} · Interés: {formatDate(it.interestedAt)}
                   </p>
 
-                  {!isActive ? (
-                    <p className="text-xs text-muted-foreground mt-1">Esta publicación no está activa. Acciones bloqueadas.</p>
+                  {!visibleToStudent ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Esta publicación no está visible (requiere APPROVED + ACTIVE + OPEN). Acciones bloqueadas.
+                    </p>
                   ) : null}
                 </div>
 
@@ -208,8 +268,12 @@ export default function StudentInterestsPage() {
                     type="button"
                     className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm disabled:opacity-50"
                     onClick={() => onRemove(opp.id)}
-                    disabled={!isActive}
-                    title={!isActive ? "No se puede retirar interés si no está activa" : "Retirar interés"}
+                    disabled={!visibleToStudent}
+                    title={
+                      !visibleToStudent
+                        ? "No se puede retirar si no está visible (APPROVED+ACTIVE+OPEN)"
+                        : "Retirar interés"
+                    }
                   >
                     <Trash2 className="h-4 w-4" />
                     Retirar

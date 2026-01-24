@@ -5,128 +5,183 @@ function isDev() {
   return process.env.NODE_ENV !== "production"
 }
 
+const norm = (s?: string | null) => (s ?? "").trim().toUpperCase()
+
+//  En tu sistema ya querés SOLO estos valores:
+const LIFECYCLE_ALLOWED = ["ACTIVE", "INACTIVE"] as const
+const APPROVAL_ALLOWED = ["PENDING", "APPROVED", "REJECTED"] as const
+const TYPE_ALLOWED = ["TFG", "INTERNSHIP", "JOB"] as const
+const STATUS_ALLOWED = ["OPEN", "CLOSED"] as const
+
+const normalizeLifecycle = (v?: string | null) => {
+  const s = norm(v)
+  return (LIFECYCLE_ALLOWED as readonly string[]).includes(s) ? s : null
+}
+
+const normalizeApproval = (v?: string | null) => {
+  const s = norm(v)
+  return (APPROVAL_ALLOWED as readonly string[]).includes(s) ? s : null
+}
+
+const normalizeType = (v?: string | null) => {
+  const s = norm(v)
+  return (TYPE_ALLOWED as readonly string[]).includes(s) ? s : null
+}
+
+const normalizeStatus = (v?: string | null) => {
+  const s = norm(v)
+  return (STATUS_ALLOWED as readonly string[]).includes(s) ? s : null
+}
+
 export async function GET(req: Request) {
-  const supabase = await createServerSupabase()
-  const url = new URL(req.url)
+  try {
+    const supabase = await createServerSupabase()
+    const url = new URL(req.url)
 
-  const q = (url.searchParams.get("q") ?? "").trim()
-  const status = (url.searchParams.get("status") ?? "").trim()
-  const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"))
-  const pageSize = Math.min(50, Math.max(1, Number(url.searchParams.get("pageSize") ?? "12")))
+    const q = (url.searchParams.get("q") ?? "").trim()
 
-  const from = (page - 1) * pageSize
-  const to = from + pageSize - 1
+    // filtros (opcionales)
+    const lifecycle = (url.searchParams.get("lifecycle") ?? "").trim() // ACTIVE/INACTIVE
+    const approval = (url.searchParams.get("approval") ?? "").trim() // PENDING/APPROVED/REJECTED
+    const status = (url.searchParams.get("status") ?? "").trim() // OPEN/CLOSED
+    const type = (url.searchParams.get("type") ?? "").trim() // TFG/INTERNSHIP/JOB
 
-  // 1) usuario real (sesión) + fallback DEV
-  const { data: auth, error: authErr } = await supabase.auth.getUser()
-  if (authErr) {
-    console.error("auth.getUser error:", authErr)
-  }
+    const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"))
+    const pageSize = Math.min(50, Math.max(1, Number(url.searchParams.get("pageSize") ?? "12")))
 
-  let userId: string | null = auth?.user?.id ?? null
-  if (!userId && isDev()) userId = process.env.DEV_USER_ID ?? null
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
 
-  if (!userId) {
-    return NextResponse.json({ message: "No autenticado" }, { status: 401 })
-  }
+    // 1) usuario real (sesión) + fallback DEV
+    const { data: auth, error: authErr } = await supabase.auth.getUser()
+    if (authErr) console.warn("auth.getUser warning:", authErr)
 
-  // 2) Query interests -> opportunity + company + internship
-  let query = supabase
-    .from("INTEREST")
-    .select(
-      `
-      id,
-      created_at,
-      opportunity_id,
-      OPPORTUNITY:opportunity_id (
+    let userId: string | null = auth?.user?.id ?? null
+    if (!userId && isDev()) userId = process.env.DEV_USER_ID ?? null
+
+    if (!userId) {
+      return NextResponse.json({ message: "No autenticado" }, { status: 401 })
+    }
+
+    /**
+     * IMPORTANTE: NO uses !inner aquí.
+     * Queremos mostrar el interés aunque la publicación ya no esté visible
+     * (ej: se cerró, quedó INACTIVE o REJECTED).
+     */
+    let query = supabase
+      .from("INTEREST")
+      .select(
+        `
         id,
-        title,
-        type,
-        description,
-        lifecycle_status,
         created_at,
-        company_id,
-        COMPANY:company_id ( id, name ),
-        internship:INTERNSHIP!INTERNSHIP_opportunity_fkey ( schedule )
+        opportunity_id,
+        OPPORTUNITY:opportunity_id (
+          id,
+          title,
+          type,
+          description,
+          lifecycle_status,
+          approval_status,
+          status,
+          created_at,
+          mode,
+          company_id,
+          COMPANY:company_id ( id, name ),
+          internship:INTERNSHIP!INTERNSHIP_opportunity_fkey ( schedule, remuneration, duration )
+        )
+      `,
+        { count: "exact" }
       )
-    `,
-      { count: "exact" }
-    )
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .range(from, to)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range(from, to)
 
-  // Nota: filtrar por campo del embed a veces es delicado.
-  // Si te da error, se hace post-filter.
-  if (status) {
-    query = query.eq("OPPORTUNITY.lifecycle_status", status)
-  }
+    // 2) Filtros (solo si son válidos)
+    const lf = normalizeLifecycle(lifecycle)
+    if (lf) query = query.eq("OPPORTUNITY.lifecycle_status", lf)
 
-  if (q) {
-    const clean = q.replaceAll('"', "").replaceAll("'", "")
-    query = query.or(
-      `OPPORTUNITY.title.ilike.%${clean}%,OPPORTUNITY.description.ilike.%${clean}%`
-    )
-  }
+    const ap = normalizeApproval(approval)
+    if (ap) query = query.eq("OPPORTUNITY.approval_status", ap)
 
-  const { data, error, count } = await query
+    const st = normalizeStatus(status)
+    if (st) query = query.eq("OPPORTUNITY.status", st)
 
-  if (error) {
-    console.error("ERROR GET MY-INTERESTS", {
-      message: error.message,
-      code: (error as any).code,
-      details: (error as any).details,
-      hint: (error as any).hint,
-    })
+    const ty = normalizeType(type)
+    if (ty) query = query.eq("OPPORTUNITY.type", ty)
 
-    return NextResponse.json(
-      {
-        error: error.message,
+    // 3) Search en title/description (embed)
+    if (q) {
+      const clean = q.replaceAll('"', "").replaceAll("'", "")
+      query = query.or(`OPPORTUNITY.title.ilike.%${clean}%,OPPORTUNITY.description.ilike.%${clean}%`)
+    }
+
+    const { data, error, count } = await query
+
+    if (error) {
+      console.error("ERROR GET MY-INTERESTS", {
+        message: error.message,
         code: (error as any).code,
         details: (error as any).details,
         hint: (error as any).hint,
-      },
-      { status: 500 }
-    )
+      })
+
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: (error as any).code,
+          details: (error as any).details,
+          hint: (error as any).hint,
+        },
+        { status: 500 }
+      )
+    }
+
+    const total = count ?? 0
+    const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+    // 4) Map defensivo + normalización estricta de enums
+    const out =
+      (data ?? []).map((row: any) => {
+        const oppRaw = row?.OPPORTUNITY
+        const opp = Array.isArray(oppRaw) ? oppRaw[0] : oppRaw
+
+        const compRaw = opp?.COMPANY
+        const company = Array.isArray(compRaw) ? compRaw[0] : compRaw
+
+        const internRaw = opp?.internship
+        const internship = Array.isArray(internRaw) ? internRaw[0] : internRaw
+
+        return {
+          interestId: row.id,
+          interestedAt: row.created_at,
+
+          opportunity: {
+            id: opp?.id ?? row.opportunity_id,
+            title: opp?.title ?? "",
+            type: normalizeType(opp?.type) ?? "TFG",
+            lifecycle_status: normalizeLifecycle(opp?.lifecycle_status) ?? null,
+            approval_status: normalizeApproval(opp?.approval_status) ?? null,
+            status: normalizeStatus(opp?.status) ?? null,
+            created_at: opp?.created_at ?? null,
+            company: company?.name ?? "No especificada",
+            mode: opp?.mode ?? null,
+
+            // extras
+            schedule: internship?.schedule ?? "",
+            remuneration: internship?.remuneration ?? null,
+            internshipDuration: internship?.duration ?? null,
+          },
+        }
+      }) ?? []
+
+    return NextResponse.json({
+      data: out,
+      page,
+      total,
+      totalPages,
+    })
+  } catch (e) {
+    console.error("my-interests crash:", e)
+    return NextResponse.json({ message: "Error interno" }, { status: 500 })
   }
-
-  const total = count ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
-  // 3) Map defensivo: OPPORTUNITY/COMPANY/internship pueden venir como objeto o array
-  const opportunities =
-    (data ?? []).map((row: any) => {
-      const oppRaw = row?.OPPORTUNITY
-      const opp = Array.isArray(oppRaw) ? oppRaw[0] : oppRaw
-
-      const compRaw = opp?.COMPANY
-      const company = Array.isArray(compRaw) ? compRaw[0] : compRaw
-
-      const internRaw = opp?.internship
-      const internship = Array.isArray(internRaw) ? internRaw[0] : internRaw
-
-      return {
-        id: opp?.id ?? row.opportunity_id,
-        title: opp?.title ?? "",
-        company: company?.name ?? "No especificada",
-        location: opp?.mode ?? "—",
-        type: (opp?.type ?? "graduation-project") as
-          | "internship"
-          | "graduation-project"
-          | "job",
-        description: opp?.description ?? "",
-        postedAt: row.created_at, // fecha de interés
-        lifecycle_status: opp?.lifecycle_status ?? null,
-
-        // extra student: duración desde INTERNSHIP.schedule
-        schedule: internship?.schedule ?? "",
-      }
-    }) ?? []
-
-  return NextResponse.json({
-    data: opportunities,
-    page,
-    total,
-    totalPages,
-  })
 }

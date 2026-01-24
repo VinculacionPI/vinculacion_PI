@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
+
 import { Button } from "@/components/ui/button"
 import { OpportunityCard, type Opportunity } from "@/components/shared/opportunity-card"
 import { Pagination } from "@/components/shared/pagination"
@@ -11,11 +13,18 @@ import { StatsCard } from "@/components/shared/stats-card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { supabase } from "@/lib/supabase/client"
 
-import { 
-  Briefcase, Bookmark, Search, TrendingUp, 
-  User, Bell, GraduationCap, X
+import {
+  Briefcase,
+  Bookmark,
+  Search,
+  TrendingUp,
+  User,
+  Bell,
+  GraduationCap,
+  X,
 } from "lucide-react"
-import { 
+
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -23,22 +32,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+
 import { Badge } from "@/components/ui/badge"
-import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 
 const ITEMS_PER_PAGE = 12
 
 type OpportunitiesApiResponse = {
-  data: Opportunity[]
+  data: any[] // <- importante: /api/my-interests NO siempre devuelve Opportunity[]
   page: number
   total: number
   totalPages: number
@@ -48,13 +57,47 @@ type CompanyOption = { id: string; name: string }
 
 type TfgFilters = {
   q: string
-  mode: string
+  mode: string // "all" | ...
   duration: string
-  companyId: string
+  companyId: string // "all" | uuid
+}
+
+/** Normaliza strings para comparar */
+const norm = (s?: string | null) => (s ?? "").trim().toUpperCase()
+
+/**
+ * Convierte cualquier shape que venga del backend a tu tipo Opportunity del UI.
+ * Soporta:
+ * - /api/opportunities -> { id, title, company, location, type, ... }
+ * - /api/my-interests -> { interestId, opportunity: {...} }
+ */
+function normalizeToOpportunity(raw: any): Opportunity | null {
+  const src = raw?.opportunity ? raw.opportunity : raw
+  const id = src?.id
+  if (!id || id === "undefined") return null
+
+  // type canonical (tu UI usa "graduation-project" etc)
+  const typeRaw = norm(src?.type)
+  let uiType: Opportunity["type"] = "graduation-project"
+  if (typeRaw === "INTERNSHIP") uiType = "internship"
+  else if (typeRaw === "JOB") uiType = "job"
+  else uiType = "graduation-project" // TFG -> graduation-project
+
+  return {
+    id,
+    title: src?.title ?? "",
+    company: src?.company ?? src?.COMPANY?.name ?? "Empresa",
+    location: src?.location ?? src?.mode ?? "",
+    type: uiType,
+    description: src?.description ?? "",
+    postedAt: src?.postedAt ?? src?.created_at ?? "",
+    lifecycle_status: src?.lifecycle_status ?? src?.lifecycleStatus ?? null,
+  }
 }
 
 export default function StudentDashboardPage() {
   const router = useRouter()
+
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<any>(null)
@@ -76,26 +119,23 @@ export default function StudentDashboardPage() {
   const [interestedIds, setInterestedIds] = useState<Set<string>>(new Set())
   const [interestedTotal, setInterestedTotal] = useState(0)
 
-  // Obtener perfil del usuario
+  // =========================
+  // PERFIL
+  // =========================
   const fetchUserProfile = async () => {
     try {
-      // 1. Obtener sesión del usuario usando el cliente configurado
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      if (sessionError) {
-        console.error("Error obteniendo sesión:", sessionError)
-        throw sessionError
-      }
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError) throw sessionError
 
       if (!session) {
-        console.log("No hay sesión activa, redirigiendo a login")
-        router.push('/login')
+        router.push("/login")
         return
       }
 
-      console.log("Usuario autenticado ID:", session.user.id)
-
-      // 2. Obtener perfil desde la tabla USERS
       const { data: profile, error: profileError } = await supabase
         .from("USERS")
         .select("*")
@@ -103,68 +143,25 @@ export default function StudentDashboardPage() {
         .single()
 
       if (profileError) {
-        console.error("Error obteniendo perfil:", profileError)
-        
-        // Si el perfil no existe en USERS, pero sí en auth.users
-        if (profileError.code === 'PGRST116') { // Código para "no encontrado"
-          console.log("Perfil no encontrado en USERS, creando uno básico...")
-          
-          // Crear perfil básico con datos de auth
-          const basicProfile = {
-            id: session.user.id,
-            email: session.user.email || "",
-            name: session.user.user_metadata?.full_name || 
-                  session.user.user_metadata?.name || 
-                  "Usuario",
-            role: "student",
-            status: "active",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-          
-          // Insertar en USERS
-          const { data: newProfile, error: insertError } = await supabase
-            .from("USERS")
-            .insert([basicProfile])
-            .select()
-            .single()
-            
-          if (insertError) {
-            console.error("Error creando perfil:", insertError)
-            // Usar datos mínimos de sesión
-            setUserProfile({
-              id: session.user.id,
-              name: session.user.email?.split('@')[0] || "Estudiante",
-              email: session.user.email,
-              role: "student"
-            })
-            return
-          }
-          
-          setUserProfile(newProfile)
-          console.log("Perfil creado:", newProfile.name)
-          return
-        }
-        
-        // Usar datos mínimos de sesión en caso de error
+        // si no existe, usamos datos mínimos (NO crear acá, eso lo haría un trigger/endpoint idealmente)
         setUserProfile({
           id: session.user.id,
-          name: session.user.email?.split('@')[0] || "Estudiante",
+          name: session.user.email?.split("@")[0] || "Estudiante",
           email: session.user.email,
-          role: "student"
+          role: "STUDENT",
         })
         return
       }
 
-      // 4. Actualizar estado con el perfil real
       setUserProfile(profile)
-      console.log("Perfil obtenido de Supabase:", profile.name)
-
     } catch (error) {
       console.error("Error obteniendo perfil:", error)
     }
   }
 
+  // =========================
+  // COMPANIES
+  // =========================
   const fetchCompanies = async () => {
     try {
       const res = await fetch("/api/companies", {
@@ -172,17 +169,17 @@ export default function StudentDashboardPage() {
         credentials: "include",
       })
       const json = await res.json()
-      if (res.ok && json.data) {
-        setCompanies(json.data)
-      } else {
-        setCompanies([])
-      }
+      if (res.ok && json.data) setCompanies(json.data)
+      else setCompanies([])
     } catch (e) {
       console.error("Error fetching companies:", e)
       setCompanies([])
     }
   }
 
+  // =========================
+  // INTERESTS BATCH
+  // =========================
   const fetchInterestsBatch = async (opps: Opportunity[]) => {
     try {
       if (!opps.length) {
@@ -194,6 +191,7 @@ export default function StudentDashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
+        credentials: "include", // ✅ importante
         body: JSON.stringify({ opportunityIds: opps.map((o) => o.id) }),
       })
 
@@ -203,17 +201,16 @@ export default function StudentDashboardPage() {
       }
 
       const j = await resInterest.json()
-      if (j.interestedIds && Array.isArray(j.interestedIds)) {
-        setInterestedIds(new Set(j.interestedIds))
-      } else {
-        setInterestedIds(new Set())
-      }
+      setInterestedIds(new Set((j.interestedIds ?? []) as string[]))
     } catch (e) {
       console.error("Error fetching interests batch:", e)
       setInterestedIds(new Set())
     }
   }
 
+  // =========================
+  // OPPORTUNITIES (ALL)
+  // =========================
   const fetchOpportunitiesAll = async () => {
     setIsLoading(true)
     try {
@@ -223,59 +220,61 @@ export default function StudentDashboardPage() {
 
       if (filters.q.trim()) params.set("q", filters.q.trim())
       if (filters.duration) params.set("duration", filters.duration)
-      if (filters.mode !== "all") {
-        params.set("mode", filters.mode)
-      }
-
-      if (filters.companyId !== "all") {
-        params.set("companyId", filters.companyId)
-      }
+      if (filters.mode !== "all") params.set("mode", filters.mode)
+      if (filters.companyId !== "all") params.set("companyId", filters.companyId)
 
       const res = await fetch(`/api/opportunities?${params.toString()}`, {
         cache: "no-store",
         credentials: "include",
       })
-      
+
       if (!res.ok) {
-        console.error("API /api/opportunities error:", res.status)
         setOpportunities([])
         setInterestedIds(new Set())
         setTotalPages(1)
         return
       }
 
-      const json = await res.json() as OpportunitiesApiResponse
-      const opps = json.data ?? []
+      const json = (await res.json()) as OpportunitiesApiResponse
+      const opps = (json.data ?? [])
+        .map(normalizeToOpportunity)
+        .filter(Boolean) as Opportunity[]
+
       setOpportunities(opps)
       setTotalPages(json.totalPages ?? 1)
 
       await fetchInterestsBatch(opps)
+
+      // tab all -> no usamos interestedTotal
+      setInterestedTotal(0)
     } catch (err) {
       console.error("Error fetching opportunities:", err)
       setOpportunities([])
       setInterestedIds(new Set())
       setTotalPages(1)
+      setInterestedTotal(0)
     } finally {
       setIsLoading(false)
     }
   }
 
+  // =========================
+  // OPPORTUNITIES (INTERESTED)
+  // =========================
   const fetchOpportunitiesInterested = async () => {
     setIsLoading(true)
     try {
       const params = new URLSearchParams()
       params.set("page", String(currentPage))
       params.set("pageSize", String(ITEMS_PER_PAGE))
-
       if (filters.q.trim()) params.set("q", filters.q.trim())
-        
-      const res = await fetch(`/api/my-interests?${params.toString()}`, { 
+
+      const res = await fetch(`/api/my-interests?${params.toString()}`, {
         cache: "no-store",
         credentials: "include",
       })
-      
+
       if (!res.ok) {
-        console.error("API /api/my-interests error:", res.status)
         setOpportunities([])
         setInterestedIds(new Set())
         setTotalPages(1)
@@ -283,13 +282,18 @@ export default function StudentDashboardPage() {
         return
       }
 
-      const json = await res.json() as OpportunitiesApiResponse
-      const opps = json.data ?? []
+      const json = (await res.json()) as OpportunitiesApiResponse
+
+      // ✅ aquí viene la magia: /api/my-interests puede venir como [{interestId, opportunity:{...}}]
+      const opps = (json.data ?? [])
+        .map(normalizeToOpportunity)
+        .filter(Boolean) as Opportunity[]
+
       setOpportunities(opps)
       setTotalPages(json.totalPages ?? 1)
       setInterestedTotal(json.total ?? opps.length)
-      
-      // Todas las oportunidades en "mis intereses" deben estar marcadas como interesadas
+
+      // En tab interested, todos deben estar marcados
       setInterestedIds(new Set(opps.map((o) => o.id)))
     } catch (err) {
       console.error("Error fetching my interests:", err)
@@ -302,27 +306,31 @@ export default function StudentDashboardPage() {
     }
   }
 
+  // =========================
+  // EFFECTS
+  // =========================
   useEffect(() => {
     fetchUserProfile()
     fetchCompanies()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Cuando cambian page/filtros/tab, decide qué cargar
   useEffect(() => {
-    if (activeTab === "interested") {
-      fetchOpportunitiesInterested()
-    } else {
-      fetchOpportunitiesAll()
-    }
+    if (activeTab === "interested") fetchOpportunitiesInterested()
+    else fetchOpportunitiesAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentPage, filters.q, filters.mode, filters.duration, filters.companyId])
 
-  // Si cambian filtros, volver a página 1
   useEffect(() => {
     setCurrentPage(1)
   }, [filters.q, filters.mode, filters.duration, filters.companyId, activeTab])
 
+  // =========================
+  // ACTIONS
+  // =========================
   const handleInterestToggle = async (id: string, next: boolean) => {
+    if (!id || id === "undefined") return
+
     try {
       const res = await fetch("/api/interest", {
         method: next ? "POST" : "DELETE",
@@ -336,29 +344,23 @@ export default function StudentDashboardPage() {
         const j = await res.json().catch(() => ({}))
         if (res.status === 401) {
           alert("Debes iniciar sesión.")
-          router.push('/login')
-        } else if (j.error === "DUPLICATE") {
-          alert("Ya manifestaste interés en esta oportunidad.")
-        } else if (j.error === "INACTIVE") {
-          alert("Esta oportunidad no está activa.")
-        } else {
-          alert("No se pudo procesar la acción.")
-        }
+          router.push("/login")
+        } else if ((j as any)?.error === "DUPLICATE") alert("Ya manifestaste interés en esta oportunidad.")
+        else if ((j as any)?.error === "INACTIVE_OR_CLOSED") alert("La publicación no está activa o está cerrada.")
+        else if ((j as any)?.error === "INACTIVE") alert("La publicación no está activa.")
+        else alert("No se pudo procesar la acción.")
         return
       }
 
-      // Actualizar estado local inmediatamente
       setInterestedIds((prev) => {
         const copy = new Set(prev)
         next ? copy.add(id) : copy.delete(id)
         return copy
       })
 
-      // Si estamos en la pestaña "interesadas" y quitamos interés, recargar
       if (activeTab === "interested" && !next) {
         await fetchOpportunitiesInterested()
       }
-
     } catch (e) {
       console.error("Error toggling interest:", e)
       alert("Error de red. Por favor intenta de nuevo.")
@@ -374,46 +376,52 @@ export default function StudentDashboardPage() {
     }
   }
 
+  const clearFilters = () => {
+    // ✅ Importantísimo: tus selects usan "all"
+    setFilters({ q: "", mode: "all", duration: "", companyId: "all" })
+  }
+
+  // =========================
+  // STATS (sobre type UI)
+  // =========================
   const stats = useMemo(() => {
+    const t = opportunities
     return {
-      total: opportunities.length,
-      internships: opportunities.filter(o => o.type?.toLowerCase().includes('practica') || o.type?.toLowerCase().includes('intern')).length,
-      projects: opportunities.filter(o => o.type?.toLowerCase().includes('tfg') || o.type?.toLowerCase().includes('proyecto')).length,
-      jobs: opportunities.filter(o => o.type?.toLowerCase().includes('empleo') || o.type?.toLowerCase().includes('trabajo')).length,
+      total: t.length,
+      internships: t.filter((o) => o.type === "internship").length,
+      projects: t.filter((o) => o.type === "graduation-project").length,
+      jobs: t.filter((o) => o.type === "job").length,
     }
   }, [opportunities])
 
-  const clearFilters = () => {
-    setFilters({ q: "", mode: "", duration: "", companyId: "" })
-  }
-
+  // =========================
+  // RENDER
+  // =========================
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header con perfil del usuario */}
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Oportunidades TFG Disponibles
-          </h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Oportunidades TFG Disponibles</h1>
           <p className="text-muted-foreground">
-            {userProfile ? `Bienvenido, ${userProfile.name}` : 'Cargando perfil...'}
+            {userProfile ? `Bienvenido, ${userProfile.name}` : "Cargando perfil..."}
           </p>
         </div>
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-2">
               <User className="h-4 w-4" />
-              {userProfile?.name?.split(' ')[0] || 'Cuenta'}
+              {userProfile?.name?.split(" ")[0] || "Cuenta"}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => router.push('/dashboard/student/profile')}>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/student/profile")}>
               <User className="h-4 w-4 mr-2" />
               Mi Perfil
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/dashboard/student/notifications')}>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/student/notifications")}>
               <Bell className="h-4 w-4 mr-2" />
               Notificaciones
             </DropdownMenuItem>
@@ -425,33 +433,13 @@ export default function StudentDashboardPage() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      
+
       {/* Estadísticas */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatsCard 
-          title="Total" 
-          value={stats.total} 
-          icon={Briefcase} 
-          description="Oportunidades disponibles"
-        />
-        <StatsCard 
-          title="Prácticas" 
-          value={stats.internships} 
-          icon={TrendingUp} 
-          description="Oportunidades de práctica"
-        />
-        <StatsCard 
-          title="TFG" 
-          value={stats.projects} 
-          icon={GraduationCap} 
-          description="Proyectos de grado"
-        />
-        <StatsCard 
-          title="Empleos" 
-          value={stats.jobs} 
-          icon={Briefcase} 
-          description="Ofertas laborales"
-        />
+        <StatsCard title="Total" value={stats.total} icon={Briefcase} description="Oportunidades disponibles" />
+        <StatsCard title="Prácticas" value={stats.internships} icon={TrendingUp} description="Oportunidades de práctica" />
+        <StatsCard title="TFG" value={stats.projects} icon={GraduationCap} description="Proyectos de grado" />
+        <StatsCard title="Empleos" value={stats.jobs} icon={Briefcase} description="Ofertas laborales" />
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">
@@ -461,7 +449,7 @@ export default function StudentDashboardPage() {
             <CardContent className="pt-6 space-y-4">
               <div>
                 <h3 className="text-sm font-semibold mb-3">Filtros</h3>
-                
+
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Buscar</label>
@@ -524,11 +512,7 @@ export default function StudentDashboardPage() {
                     </Select>
                   </div>
 
-                  <Button 
-                    variant="outline" 
-                    onClick={clearFilters} 
-                    className="w-full"
-                  >
+                  <Button variant="outline" onClick={clearFilters} className="w-full">
                     Limpiar filtros
                   </Button>
                 </div>
@@ -547,7 +531,7 @@ export default function StudentDashboardPage() {
                   <Briefcase className="h-4 w-4" />
                   Todas las oportunidades
                   <Badge variant="secondary" className="ml-2">
-                    {activeTab === "all" ? opportunities.length : "..."}
+                    {activeTab === "all" ? opportunities.length : "…"}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="interested" className="flex items-center gap-2">
@@ -571,8 +555,8 @@ export default function StudentDashboardPage() {
               <EmptyState
                 icon={activeTab === "interested" ? Bookmark : Search}
                 title={
-                  activeTab === "interested" 
-                    ? "No has manifestado interés en ninguna oportunidad" 
+                  activeTab === "interested"
+                    ? "No has manifestado interés en ninguna oportunidad"
                     : "No se encontraron oportunidades"
                 }
                 description={
@@ -601,11 +585,7 @@ export default function StudentDashboardPage() {
               {/* Paginación */}
               {totalPages > 1 && (
                 <div className="mt-8">
-                  <Pagination 
-                    currentPage={currentPage} 
-                    totalPages={totalPages} 
-                    onPageChange={setCurrentPage} 
-                  />
+                  <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                 </div>
               )}
             </>

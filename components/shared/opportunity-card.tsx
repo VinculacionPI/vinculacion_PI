@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import type React from "react"
 import {
   Card,
   CardContent,
@@ -26,8 +27,6 @@ export interface Opportunity {
 
 interface OpportunityCardProps {
   opportunity: Opportunity
-
-  // AHORA ES INTERÉS
   isInterested: boolean
   onInterestToggle: (id: string, next: boolean) => void
 }
@@ -39,13 +38,24 @@ export function OpportunityCard({
 }: OpportunityCardProps) {
   const router = useRouter()
 
-  // ✅ no bloquea si no viene lifecycle_status
-  const isActive = (opportunity.lifecycle_status ?? "ACTIVE").toUpperCase() === "ACTIVE"
+  // ✅ blindaje: evita /undefined y UUID invalid
+  const oppId = typeof opportunity?.id === "string" ? opportunity.id.trim() : ""
+  const hasValidId = oppId.length > 0
+
+  // Soporta "ACTIVE" y "ACTIVO"
+  const isActive = ["ACTIVE", "ACTIVO"].includes(
+    (opportunity.lifecycle_status ?? "").trim().toUpperCase()
+  )
 
   const handleToggle = (e: React.MouseEvent) => {
-    // evita cualquier click bubbling raro
     e.preventDefault()
     e.stopPropagation()
+
+    if (!hasValidId) {
+      console.warn("OpportunityCard: opportunity.id inválido:", opportunity)
+      alert("No se puede procesar esta publicación (ID inválido).")
+      return
+    }
 
     if (!isActive) {
       alert("Esta publicación no está activa.")
@@ -59,15 +69,23 @@ export function OpportunityCard({
     )
     if (!ok) return
 
-    onInterestToggle(opportunity.id, !isInterested)
+    onInterestToggle(oppId, !isInterested)
+  }
+
+  const goDetail = () => {
+    if (!hasValidId) {
+      console.warn("OpportunityCard: navigation blocked, id inválido:", opportunity)
+      return
+    }
+    router.push(`/dashboard/student/opportunities/${oppId}`)
   }
 
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <CardTitle className="text-lg mb-1">{opportunity.title}</CardTitle>
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-lg mb-1 truncate">{opportunity.title}</CardTitle>
             <CardDescription className="flex items-center gap-1">
               <Building2 className="h-3 w-3" />
               {opportunity.company}
@@ -79,21 +97,27 @@ export function OpportunityCard({
             variant="ghost"
             size="icon"
             onClick={handleToggle}
-            disabled={!isActive}
-            // ✅ área clickeable sólida + feedback visual
+            disabled={!isActive || !hasValidId}
             className={[
               "h-9 w-9",
               isInterested ? "text-accent" : "text-muted-foreground",
-              !isActive ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+              !isActive || !hasValidId ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
             ].join(" ")}
             type="button"
-            title={isActive ? (isInterested ? "Retirar interés" : "Manifestar interés") : "Publicación no activa"}
+            title={
+              !hasValidId
+                ? "Publicación inválida"
+                : isActive
+                ? isInterested
+                  ? "Retirar interés"
+                  : "Manifestar interés"
+                : "Publicación no activa"
+            }
           >
-            {/* ✅ el SVG no debe capturar clicks */}
-            <Bookmark className={`h-4 w-4 pointer-events-none ${isInterested ? "fill-current" : ""}`} />
-            <span className="sr-only">
-              {isInterested ? "Retirar interés" : "Manifestar interés"}
-            </span>
+            <Bookmark
+              className={`h-4 w-4 pointer-events-none ${isInterested ? "fill-current" : ""}`}
+            />
+            <span className="sr-only">{isInterested ? "Retirar interés" : "Manifestar interés"}</span>
           </Button>
         </div>
       </CardHeader>
@@ -121,8 +145,10 @@ export function OpportunityCard({
         <Button
           variant="outline"
           className="w-full bg-transparent"
-          onClick={() => router.push(`/dashboard/student/opportunities/${opportunity.id}`)}
+          onClick={goDetail}
+          disabled={!hasValidId}
           type="button"
+          title={!hasValidId ? "No se puede abrir (ID inválido)" : "Ver detalles"}
         >
           Ver Detalles
           <ExternalLink className="ml-2 h-4 w-4" />
