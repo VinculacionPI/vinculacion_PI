@@ -23,7 +23,12 @@ export function DashboardHeader({ userName = "Usuario", userRole = "Estudiante" 
   const router = useRouter()
 
   const handleLogout = async () => {
-    // TODO: Implement actual logout logic
+    
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
+
     router.push("/login")
   }
 
