@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase"
+// CORRECCIÓN: Importa el cliente ya instanciado
+import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,7 +43,7 @@ export default function RequestChangePage() {
     setSuccess("")
 
     try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+      // Usa supabase directamente, NO llames createClient
       
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error("No hay sesión activa")

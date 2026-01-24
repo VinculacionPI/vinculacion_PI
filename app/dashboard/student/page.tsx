@@ -9,10 +9,11 @@ import { LoadingState } from "@/components/shared/loading-state"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatsCard } from "@/components/shared/stats-card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { createClient } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase/client"
+
 import { 
   Briefcase, Bookmark, Search, TrendingUp, 
-  User, Bell, GraduationCap
+  User, Bell, GraduationCap, X
 } from "lucide-react"
 import { 
   DropdownMenu,
@@ -24,6 +25,15 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
+import { Input } from "@/components/ui/input"
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
+import { Card, CardContent } from "@/components/ui/card"
 
 const ITEMS_PER_PAGE = 12
 
@@ -56,9 +66,9 @@ export default function StudentDashboardPage() {
 
   const [filters, setFilters] = useState<TfgFilters>({
     q: "",
-    mode: "",
+    mode: "all",
     duration: "",
-    companyId: "",
+    companyId: "all",
   })
 
   const [activeTab, setActiveTab] = useState<"all" | "interested">("all")
@@ -68,97 +78,92 @@ export default function StudentDashboardPage() {
 
   // Obtener perfil del usuario
   const fetchUserProfile = async () => {
-  try {
-    // 1. Crear cliente Supabase
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-
-    // 2. Obtener sesión del usuario
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    
-    if (sessionError) {
-      console.error("Error obteniendo sesión:", sessionError)
-      throw sessionError
-    }
-
-    if (!session) {
-      console.log("No hay sesión activa")
-      // Redirigir a login si no hay sesión
-      // router.push('/login')
-      return
-    }
-
-    console.log("Usuario autenticado ID:", session.user.id)
-
-    // 3. Obtener perfil desde la tabla USERS
-    const { data: profile, error: profileError } = await supabase
-      .from("USERS")
-      .select("*")
-      .eq("id", session.user.id)
-      .single()
-
-    if (profileError) {
-      console.error("Error obteniendo perfil:", profileError)
+    try {
+      // 1. Obtener sesión del usuario usando el cliente configurado
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
-      // Si el perfil no existe en USERS, pero sí en auth.users
-      // Podemos crear un perfil básico
-      if (profileError.code === 'PGRST116') { // Código para "no encontrado"
-        console.log("Perfil no encontrado en USERS, creando uno básico...")
-        
-        // Crear perfil básico con datos de auth
-        const basicProfile = {
-          id: session.user.id,
-          email: session.user.email || "",
-          name: session.user.user_metadata?.name || "Usuario",
-          role: session.user.user_metadata?.role || "student",
-          status: "active",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-        
-        // Insertar en USERS
-        const { data: newProfile, error: insertError } = await supabase
-          .from("USERS")
-          .insert([basicProfile])
-          .select()
-          .single()
-          
-        if (insertError) {
-          console.error("Error creando perfil:", insertError)
-          throw insertError
-        }
-        
-        setUserProfile(newProfile)
-        console.log("Perfil creado:", newProfile.name)
+      if (sessionError) {
+        console.error("Error obteniendo sesión:", sessionError)
+        throw sessionError
+      }
+
+      if (!session) {
+        console.log("No hay sesión activa, redirigiendo a login")
+        router.push('/login')
         return
       }
-      
-      throw profileError
-    }
 
-    // 4. Actualizar estado con el perfil real
-    setUserProfile(profile)
-    console.log("Perfil obtenido de Supabase:", profile.name)
+      console.log("Usuario autenticado ID:", session.user.id)
 
-  } catch (error) {
-    console.error("Error obteniendo perfil:", error)
-    
-    // Fallback: usar datos mock si hay error (opcional)
-    const mockProfile = {
-      id: "fallback-user-id",
-      name: "Estudiante Demo",
-      email: "demo@estudiante.com",
-      role: "student",
-      semester: 9,
-      created_at: new Date().toISOString(),
+      // 2. Obtener perfil desde la tabla USERS
+      const { data: profile, error: profileError } = await supabase
+        .from("USERS")
+        .select("*")
+        .eq("id", session.user.id)
+        .single()
+
+      if (profileError) {
+        console.error("Error obteniendo perfil:", profileError)
+        
+        // Si el perfil no existe en USERS, pero sí en auth.users
+        if (profileError.code === 'PGRST116') { // Código para "no encontrado"
+          console.log("Perfil no encontrado en USERS, creando uno básico...")
+          
+          // Crear perfil básico con datos de auth
+          const basicProfile = {
+            id: session.user.id,
+            email: session.user.email || "",
+            name: session.user.user_metadata?.full_name || 
+                  session.user.user_metadata?.name || 
+                  "Usuario",
+            role: "student",
+            status: "active",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          
+          // Insertar en USERS
+          const { data: newProfile, error: insertError } = await supabase
+            .from("USERS")
+            .insert([basicProfile])
+            .select()
+            .single()
+            
+          if (insertError) {
+            console.error("Error creando perfil:", insertError)
+            // Usar datos mínimos de sesión
+            setUserProfile({
+              id: session.user.id,
+              name: session.user.email?.split('@')[0] || "Estudiante",
+              email: session.user.email,
+              role: "student"
+            })
+            return
+          }
+          
+          setUserProfile(newProfile)
+          console.log("Perfil creado:", newProfile.name)
+          return
+        }
+        
+        // Usar datos mínimos de sesión en caso de error
+        setUserProfile({
+          id: session.user.id,
+          name: session.user.email?.split('@')[0] || "Estudiante",
+          email: session.user.email,
+          role: "student"
+        })
+        return
+      }
+
+      // 4. Actualizar estado con el perfil real
+      setUserProfile(profile)
+      console.log("Perfil obtenido de Supabase:", profile.name)
+
+    } catch (error) {
+      console.error("Error obteniendo perfil:", error)
     }
-    
-    setUserProfile(mockProfile)
-    console.warn("Usando perfil de fallback debido a error:", error)
   }
-}
 
   const fetchCompanies = async () => {
     try {
@@ -167,9 +172,14 @@ export default function StudentDashboardPage() {
         credentials: "include",
       })
       const json = await res.json()
-      if (res.ok) setCompanies(json.data ?? [])
+      if (res.ok && json.data) {
+        setCompanies(json.data)
+      } else {
+        setCompanies([])
+      }
     } catch (e) {
       console.error("Error fetching companies:", e)
+      setCompanies([])
     }
   }
 
@@ -184,7 +194,6 @@ export default function StudentDashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
-        credentials: "include",
         body: JSON.stringify({ opportunityIds: opps.map((o) => o.id) }),
       })
 
@@ -194,7 +203,11 @@ export default function StudentDashboardPage() {
       }
 
       const j = await resInterest.json()
-      setInterestedIds(new Set((j.interestedIds ?? []) as string[]))
+      if (j.interestedIds && Array.isArray(j.interestedIds)) {
+        setInterestedIds(new Set(j.interestedIds))
+      } else {
+        setInterestedIds(new Set())
+      }
     } catch (e) {
       console.error("Error fetching interests batch:", e)
       setInterestedIds(new Set())
@@ -209,31 +222,34 @@ export default function StudentDashboardPage() {
       params.set("pageSize", String(ITEMS_PER_PAGE))
 
       if (filters.q.trim()) params.set("q", filters.q.trim())
-      if (filters.mode) params.set("mode", filters.mode)
       if (filters.duration) params.set("duration", filters.duration)
-      if (filters.companyId) params.set("companyId", filters.companyId)
+      if (filters.mode !== "all") {
+        params.set("mode", filters.mode)
+      }
+
+      if (filters.companyId !== "all") {
+        params.set("companyId", filters.companyId)
+      }
 
       const res = await fetch(`/api/opportunities?${params.toString()}`, {
         cache: "no-store",
         credentials: "include",
       })
-      const json = (await res.json()) as OpportunitiesApiResponse
-
+      
       if (!res.ok) {
-        console.error("API /api/opportunities error:", json)
+        console.error("API /api/opportunities error:", res.status)
         setOpportunities([])
         setInterestedIds(new Set())
         setTotalPages(1)
         return
       }
 
+      const json = await res.json() as OpportunitiesApiResponse
       const opps = json.data ?? []
       setOpportunities(opps)
       setTotalPages(json.totalPages ?? 1)
 
       await fetchInterestsBatch(opps)
-
-      setInterestedTotal(0)
     } catch (err) {
       console.error("Error fetching opportunities:", err)
       setOpportunities([])
@@ -253,11 +269,13 @@ export default function StudentDashboardPage() {
 
       if (filters.q.trim()) params.set("q", filters.q.trim())
         
-      const res = await fetch(`/api/my-interests?${params.toString()}`, { cache: "no-store" })
-      const json = (await res.json()) as OpportunitiesApiResponse
-
+      const res = await fetch(`/api/my-interests?${params.toString()}`, { 
+        cache: "no-store",
+        credentials: "include",
+      })
+      
       if (!res.ok) {
-        console.error("API /api/my-interests error:", json)
+        console.error("API /api/my-interests error:", res.status)
         setOpportunities([])
         setInterestedIds(new Set())
         setTotalPages(1)
@@ -265,11 +283,13 @@ export default function StudentDashboardPage() {
         return
       }
 
+      const json = await res.json() as OpportunitiesApiResponse
       const opps = json.data ?? []
       setOpportunities(opps)
       setTotalPages(json.totalPages ?? 1)
       setInterestedTotal(json.total ?? opps.length)
       
+      // Todas las oportunidades en "mis intereses" deben estar marcadas como interesadas
       setInterestedIds(new Set(opps.map((o) => o.id)))
     } catch (err) {
       console.error("Error fetching my interests:", err)
@@ -289,8 +309,11 @@ export default function StudentDashboardPage() {
 
   // Cuando cambian page/filtros/tab, decide qué cargar
   useEffect(() => {
-    if (activeTab === "interested") fetchOpportunitiesInterested()
-    else fetchOpportunitiesAll()
+    if (activeTab === "interested") {
+      fetchOpportunitiesInterested()
+    } else {
+      fetchOpportunitiesAll()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentPage, filters.q, filters.mode, filters.duration, filters.companyId])
 
@@ -311,162 +334,260 @@ export default function StudentDashboardPage() {
 
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        if (res.status === 401) alert("Debes iniciar sesión.")
-        else if ((j as any)?.error === "DUPLICATE") alert("Ya manifestaste interés.")
-        else if ((j as any)?.error === "INACTIVE") alert("Publicación no activa.")
-        else alert("No se pudo procesar la acción.")
+        if (res.status === 401) {
+          alert("Debes iniciar sesión.")
+          router.push('/login')
+        } else if (j.error === "DUPLICATE") {
+          alert("Ya manifestaste interés en esta oportunidad.")
+        } else if (j.error === "INACTIVE") {
+          alert("Esta oportunidad no está activa.")
+        } else {
+          alert("No se pudo procesar la acción.")
+        }
         return
       }
 
+      // Actualizar estado local inmediatamente
       setInterestedIds((prev) => {
         const copy = new Set(prev)
         next ? copy.add(id) : copy.delete(id)
         return copy
       })
 
+      // Si estamos en la pestaña "interesadas" y quitamos interés, recargar
       if (activeTab === "interested" && !next) {
         await fetchOpportunitiesInterested()
-        return
       }
 
     } catch (e) {
       console.error("Error toggling interest:", e)
-      alert("Error de red.")
+      alert("Error de red. Por favor intenta de nuevo.")
     }
   }
 
   const handleLogout = async () => {
-    router.push("/login")
+    try {
+      await supabase.auth.signOut()
+      router.push("/login")
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error)
+    }
   }
 
   const stats = useMemo(() => {
     return {
       total: opportunities.length,
-      internships: 0,
-      projects: opportunities.length,
-      jobs: 0,
+      internships: opportunities.filter(o => o.type?.toLowerCase().includes('practica') || o.type?.toLowerCase().includes('intern')).length,
+      projects: opportunities.filter(o => o.type?.toLowerCase().includes('tfg') || o.type?.toLowerCase().includes('proyecto')).length,
+      jobs: opportunities.filter(o => o.type?.toLowerCase().includes('empleo') || o.type?.toLowerCase().includes('trabajo')).length,
     }
   }, [opportunities])
 
+  const clearFilters = () => {
+    setFilters({ q: "", mode: "", duration: "", companyId: "" })
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">
-          Oportunidades TFG Disponibles
-        </h1>
-        <p className="text-muted-foreground">
-          Explora, filtra y consulta oportunidades de TFG
-        </p>
+      {/* Header con perfil del usuario */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Oportunidades TFG Disponibles
+          </h1>
+          <p className="text-muted-foreground">
+            {userProfile ? `Bienvenido, ${userProfile.name}` : 'Cargando perfil...'}
+          </p>
+        </div>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <User className="h-4 w-4" />
+              {userProfile?.name?.split(' ')[0] || 'Cuenta'}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => router.push('/dashboard/student/profile')}>
+              <User className="h-4 w-4 mr-2" />
+              Mi Perfil
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/dashboard/student/notifications')}>
+              <Bell className="h-4 w-4 mr-2" />
+              Notificaciones
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+              <X className="h-4 w-4 mr-2" />
+              Cerrar Sesión
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       
+      {/* Estadísticas */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatsCard title="Total" value={stats.total} icon={Briefcase} />
-        <StatsCard title="Prácticas" value={stats.internships} icon={TrendingUp} />
-        <StatsCard title="TFG" value={stats.projects} icon={Search} />
-        <StatsCard title="Empleos" value={stats.jobs} icon={Briefcase} />
+        <StatsCard 
+          title="Total" 
+          value={stats.total} 
+          icon={Briefcase} 
+          description="Oportunidades disponibles"
+        />
+        <StatsCard 
+          title="Prácticas" 
+          value={stats.internships} 
+          icon={TrendingUp} 
+          description="Oportunidades de práctica"
+        />
+        <StatsCard 
+          title="TFG" 
+          value={stats.projects} 
+          icon={GraduationCap} 
+          description="Proyectos de grado"
+        />
+        <StatsCard 
+          title="Empleos" 
+          value={stats.jobs} 
+          icon={Briefcase} 
+          description="Ofertas laborales"
+        />
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">
-        <aside className="lg:col-span-1 space-y-4">
-          <div className="rounded-lg border p-4 space-y-3">
-            <div>
-              <label className="text-sm font-medium">Buscar</label>
-              <input
-                className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                placeholder="Título, descripción..."
-                value={filters.q}
-                onChange={(e) => setFilters((p) => ({ ...p, q: e.target.value }))}
-              />
-            </div>
+        {/* Panel de filtros */}
+        <aside className="lg:col-span-1">
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold mb-3">Filtros</h3>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Buscar</label>
+                    <Input
+                      placeholder="Título, descripción, habilidades..."
+                      value={filters.q}
+                      onChange={(e) => setFilters((p) => ({ ...p, q: e.target.value }))}
+                      className="w-full"
+                    />
+                  </div>
 
-            <div>
-              <label className="text-sm font-medium">Modalidad</label>
-              <select
-                className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                value={filters.mode}
-                onChange={(e) => setFilters((p) => ({ ...p, mode: e.target.value }))}
-                disabled={activeTab === "interested"}
-                title={activeTab === "interested" ? "Este filtro no está aplicado en la lista de intereses (por ahora)" : ""}
-              >
-                <option value="">Todas</option>
-                <option value="presencial">Presencial</option>
-                <option value="virtual">Virtual</option>
-                <option value="híbrida">Híbrida</option>
-              </select>
-            </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Modalidad</label>
+                    <Select
+                      value={filters.mode}
+                      onValueChange={(value) => setFilters((p) => ({ ...p, mode: value }))}
+                      disabled={activeTab === "interested"}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todas las modalidades" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        <SelectItem value="presencial">Presencial</SelectItem>
+                        <SelectItem value="virtual">Virtual</SelectItem>
+                        <SelectItem value="híbrida">Híbrida</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            <div>
-              <label className="text-sm font-medium">Duración</label>
-              <input
-                className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                placeholder="Ej: 3 meses / 6 meses"
-                value={filters.duration}
-                onChange={(e) => setFilters((p) => ({ ...p, duration: e.target.value }))}
-                disabled={activeTab === "interested"}
-                title={activeTab === "interested" ? "Este filtro no está aplicado en la lista de intereses (por ahora)" : ""}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">Debe coincidir con duration_estimated (por ahora).</p>
-            </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Duración</label>
+                    <Input
+                      placeholder="Ej: 3 meses, 6 meses"
+                      value={filters.duration}
+                      onChange={(e) => setFilters((p) => ({ ...p, duration: e.target.value }))}
+                      disabled={activeTab === "interested"}
+                      className="w-full"
+                    />
+                  </div>
 
-            <div>
-              <label className="text-sm font-medium">Empresa</label>
-              <select
-                className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                value={filters.companyId}
-                onChange={(e) => setFilters((p) => ({ ...p, companyId: e.target.value }))}
-                disabled={activeTab === "interested"}
-                title={activeTab === "interested" ? "Este filtro no está aplicado en la lista de intereses (por ahora)" : ""}
-              >
-                <option value="">Todas</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Empresa</label>
+                    <Select
+                      value={filters.companyId}
+                      onValueChange={(value) => setFilters((p) => ({ ...p, companyId: value }))}
+                      disabled={activeTab === "interested" || companies.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todas las empresas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        {companies.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            <button
-              className="w-full rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
-              onClick={() => setFilters({ q: "", mode: "", duration: "", companyId: "" })}
-              type="button"
-            >
-              Limpiar filtros
-            </button>
-          </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={clearFilters} 
+                    className="w-full"
+                  >
+                    Limpiar filtros
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </aside>
 
+        {/* Contenido principal */}
         <div className="lg:col-span-3">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mb-6">
-            <TabsList>
-              <TabsTrigger value="all">
-                <Briefcase className="h-4 w-4 mr-2" />
-                Todas
-              </TabsTrigger>
-              <TabsTrigger value="interested">
-                <Bookmark className="h-4 w-4 mr-2" />
-                Interesadas ({activeTab === "interested" ? interestedTotal : interestedIds.size})
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {/* Pestañas */}
+          <div className="mb-6">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "interested")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="all" className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Todas las oportunidades
+                  <Badge variant="secondary" className="ml-2">
+                    {activeTab === "all" ? opportunities.length : "..."}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="interested" className="flex items-center gap-2">
+                  <Bookmark className="h-4 w-4" />
+                  Mis intereses
+                  <Badge variant="secondary" className="ml-2">
+                    {activeTab === "interested" ? interestedTotal : interestedIds.size}
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
+          {/* Estado de carga */}
           {isLoading ? (
-            <LoadingState message="Cargando oportunidades..." />
+            <div className="py-12">
+              <LoadingState message="Cargando oportunidades..." />
+            </div>
           ) : opportunities.length === 0 ? (
-            <EmptyState
-              icon={activeTab === "interested" ? Bookmark : Search}
-              title={activeTab === "interested" ? "No has manifestado interés" : "No se encontraron resultados"}
-              description={
-                activeTab === "interested"
-                  ? "Marca el ícono para manifestar interés en una oportunidad."
-                  : "Intenta ajustar tu búsqueda o filtros."
-              }
-              actionLabel={activeTab === "interested" ? "Ver todas" : undefined}
-              onAction={activeTab === "interested" ? () => setActiveTab("all") : undefined}
-            />
+            <div className="py-12">
+              <EmptyState
+                icon={activeTab === "interested" ? Bookmark : Search}
+                title={
+                  activeTab === "interested" 
+                    ? "No has manifestado interés en ninguna oportunidad" 
+                    : "No se encontraron oportunidades"
+                }
+                description={
+                  activeTab === "interested"
+                    ? "Marca el ícono de favorito en las oportunidades que te interesen"
+                    : "Intenta ajustar tus filtros o busca con diferentes términos"
+                }
+                actionLabel={activeTab === "interested" ? "Explorar todas" : undefined}
+                onAction={activeTab === "interested" ? () => setActiveTab("all") : undefined}
+              />
+            </div>
           ) : (
             <>
-              <div className="grid gap-6 md:grid-cols-2 mb-6">
+              {/* Grid de oportunidades */}
+              <div className="grid gap-6 md:grid-cols-2">
                 {opportunities.map((opportunity) => (
                   <OpportunityCard
                     key={opportunity.id}
@@ -477,9 +598,14 @@ export default function StudentDashboardPage() {
                 ))}
               </div>
 
+              {/* Paginación */}
               {totalPages > 1 && (
                 <div className="mt-8">
-                  <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                  <Pagination 
+                    currentPage={currentPage} 
+                    totalPages={totalPages} 
+                    onPageChange={setCurrentPage} 
+                  />
                 </div>
               )}
             </>

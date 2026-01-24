@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabase } from '@/lib/supabase'
+import { createServerSupabase } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,8 +13,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Usar Supabase Edge Functions para enviar emails
-    const supabase = createServerSupabase()
+    // Validar email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(to)) {
+      return NextResponse.json(
+        { success: false, message: "Correo electrónico inválido" },
+        { status: 400 }
+      )
+    }
+
+    // Crear cliente Supabase del lado del servidor
+    const supabase = await createServerSupabase()
     
     let emailData: any = {
       to: to,
@@ -24,6 +33,12 @@ export async function POST(request: NextRequest) {
     // Construir contenido basado en el template
     switch (template) {
       case 'registration-success':
+        if (!data?.name || !data?.email || !data?.carnet) {
+          return NextResponse.json(
+            { success: false, message: "Faltan datos para el template de registro" },
+            { status: 400 }
+          )
+        }
         emailData = {
           ...emailData,
           html: `
@@ -41,7 +56,7 @@ export async function POST(request: NextRequest) {
                 </ul>
               </div>
               
-              <p>Para acceder al sistema, utilice sus credenciales en: <a href="${process.env.NEXT_PUBLIC_APP_URL}/login">${process.env.NEXT_PUBLIC_APP_URL}/login</a></p>
+              <p>Para acceder al sistema, utilice sus credenciales en: <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'}/login">${process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'}/login</a></p>
               
               <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">
                 <p>Este es un correo automático, por favor no responda a este mensaje.</p>
@@ -49,11 +64,17 @@ export async function POST(request: NextRequest) {
               </div>
             </div>
           `,
-          text: `Bienvenido ${data.name}. Su registro ha sido exitoso. Correo: ${data.email}, Carné: ${data.carnet}. Acceda en: ${process.env.NEXT_PUBLIC_APP_URL}/login`
+          text: `Bienvenido ${data.name}. Su registro ha sido exitoso. Correo: ${data.email}, Carné: ${data.carnet}. Acceda en: ${process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'}/login`
         }
         break
         
       case 'profile-updated':
+        if (!data?.name || !Array.isArray(data?.updated_fields)) {
+          return NextResponse.json(
+            { success: false, message: "Faltan datos para el template de actualización de perfil" },
+            { status: 400 }
+          )
+        }
         emailData = {
           ...emailData,
           html: `
@@ -90,6 +111,12 @@ export async function POST(request: NextRequest) {
         break
         
       case 'graduation-request':
+        if (!data?.name || !data?.graduation_year || !data?.degree_title) {
+          return NextResponse.json(
+            { success: false, message: "Faltan datos para el template de graduación" },
+            { status: 400 }
+          )
+        }
         emailData = {
           ...emailData,
           html: `
@@ -123,30 +150,34 @@ export async function POST(request: NextRequest) {
       default:
         emailData = {
           ...emailData,
-          html: `<p>${subject}</p>`,
-          text: subject
+          html: `<div style="font-family: Arial, sans-serif; padding: 20px;"><h1>${subject}</h1><p>${data?.message || 'Notificación del sistema'}</p></div>`,
+          text: subject + (data?.message ? `\n\n${data.message}` : '')
         }
     }
 
-    // Si tienes configurado Supabase Edge Functions para emails, puedes usarlo:
-    // const { data, error } = await supabase.functions.invoke('send-email', {
-    //   body: emailData
-    // })
+    // En producción, implementa un servicio de email real
+    const isDevelopment = process.env.NODE_ENV === 'development'
+    const isTest = process.env.NODE_ENV === 'test'
+    
+    let emailSent = false
+    let emailService = 'simulado'
 
-    // Por ahora, simular el envío (en producción implementar servicio real)
-    console.log('📧 Email simulado:', {
-      to: emailData.to,
-      subject: emailData.subject,
-      template: template
-    })
-
-    // En desarrollo, simular éxito
-    const isSuccess = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test'
-
-    if (!isSuccess) {
-      // En producción, aquí integrarías tu servicio de email real
-      // Por ejemplo: SendGrid, AWS SES, Postmark, etc.
-      throw new Error('Servicio de email no configurado para producción')
+    if (isDevelopment || isTest) {
+      // Simular envío en desarrollo
+      console.log('📧 Email simulado:', {
+        to: emailData.to,
+        subject: emailData.subject,
+        template: template
+      })
+      emailSent = true
+    } else {
+      // En producción, implementar servicio real de email
+        
+      // Si no hay servicio configurado
+      if (!emailSent) {
+        console.warn('⚠️ Servicio de email no configurado para producción')
+        emailSent = false
+      }
     }
 
     // Registrar en auditoría
@@ -154,25 +185,28 @@ export async function POST(request: NextRequest) {
       .from("audit_logs")
       .insert([{
         operation_type: "email_notification",
-        details: `Email ${template} enviado a ${to}`,
+        details: `Email ${template} ${emailSent ? 'enviado' : 'falló'} a ${to}`,
         metadata: { 
           template, 
           subject,
           recipient: to,
-          environment: process.env.NODE_ENV
+          environment: process.env.NODE_ENV,
+          email_service: emailService,
+          sent: emailSent
         },
         created_at: new Date().toISOString()
       }])
 
     return NextResponse.json({
-      success: true,
-      message: "Email procesado exitosamente",
+      success: emailSent,
+      message: emailSent ? "Email procesado exitosamente" : "Email no enviado (modo simulación/producción no configurado)",
       data: {
         to: emailData.to,
         subject: emailData.subject,
         template: template,
         environment: process.env.NODE_ENV,
-        sent: isSuccess
+        sent: emailSent,
+        service: emailService
       }
     })
 
@@ -181,13 +215,16 @@ export async function POST(request: NextRequest) {
     
     // Registrar error en auditoría
     try {
-      const supabase = createServerSupabase()
+      const supabase = await createServerSupabase()
       await supabase
         .from("audit_logs")
         .insert([{
           operation_type: "email_notification_error",
           details: `Error enviando email: ${error instanceof Error ? error.message : 'Error desconocido'}`,
-          metadata: { error: String(error) },
+          metadata: { 
+            error: String(error),
+            environment: process.env.NODE_ENV 
+          },
           created_at: new Date().toISOString()
         }])
     } catch (auditError) {

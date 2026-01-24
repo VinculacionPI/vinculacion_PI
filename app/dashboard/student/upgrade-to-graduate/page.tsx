@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,34 +34,40 @@ export default function UpgradeToGraduatePage() {
   }, [])
 
   const fetchProfile = async () => {
-    try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-      
-      /*const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        router.push("/login")
-        return
-      }*/
-      const userId = "8c818b68-3061-4f84-8314-2bf11cca8cf9"
-      const { data } = await supabase
-        .from("USERS")
-        .select("*")
-        .eq("id", userId)
-        .single()
+  try {
+    const { data: { session }, error: sessionError } =
+      await supabase.auth.getSession()
 
-      if (data) {
-        setProfile(data)
-        // Pre-fill with current data
-        setFormData(prev => ({
-          ...prev,
-          major: data.major || "",
-          finalGPA: data.final_gpa || ""
-        }))
-      }
-    } catch (err) {
-      console.error("Error fetching profile:", err)
+    if (sessionError) throw sessionError
+
+    if (!session) {
+      router.push("/login")
+      return
     }
+
+    const { data, error } = await supabase
+      .from("USERS")
+      .select("*")
+      .eq("id", session.user.id)
+      .single()
+
+    if (error) throw error
+
+    if (data) {
+      setProfile(data)
+
+      // Prellenar campos del formulario
+      setFormData(prev => ({
+        ...prev,
+        major: data.major ?? "",
+        finalGPA: data.final_gpa?.toString() ?? ""
+      }))
+    }
+  } catch (err) {
+    console.error("Error fetching profile:", err)
+    setError("No se pudo cargar la información del perfil")
   }
+}
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,7 +76,7 @@ export default function UpgradeToGraduatePage() {
     setSuccess("")
 
     try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+      // Usa supabase directamente
       
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error("No hay sesión activa")

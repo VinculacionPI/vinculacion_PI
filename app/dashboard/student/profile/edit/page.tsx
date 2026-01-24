@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase" // Importar el cliente ya configurado
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,8 +37,7 @@ export default function EditProfilePage() {
 
   const fetchProfile = async () => {
     try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-      
+      // Usar el cliente Supabase ya configurado
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
         router.push("/login")
@@ -80,8 +79,7 @@ export default function EditProfilePage() {
     setSuccess("")
 
     try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-      
+      // Usar el cliente Supabase ya configurado
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error("No hay sesión activa")
 
@@ -91,8 +89,9 @@ export default function EditProfilePage() {
         throw new Error("El teléfono debe tener 8 dígitos")
       }
 
-      // Validar email personal si está presente
-      if (formData.personalEmail && !formData.personalEmail.includes("@")) {
+      // Validar email personal si está presente - usando regex más robusto
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (formData.personalEmail && !emailRegex.test(formData.personalEmail)) {
         throw new Error("Correo personal inválido")
       }
 
@@ -106,6 +105,15 @@ export default function EditProfilePage() {
         updateData.personalEmail = formData.personalEmail.toLowerCase()
       } else {
         updateData.personalEmail = null
+      }
+
+      // Verificar si realmente hay cambios
+      const hasChanges = 
+        updateData.phone !== formData.phone || 
+        (updateData.personalEmail || null) !== (formData.personalEmail || null)
+      
+      if (!hasChanges) {
+        throw new Error("No se detectaron cambios para guardar")
       }
 
       const { error: updateError } = await supabase
@@ -125,6 +133,11 @@ export default function EditProfilePage() {
           details: "Actualización de datos personales",
           metadata: {
             updated_fields: Object.keys(updateData).filter(k => k !== 'updated_at'),
+            old_values: {
+              phone: formData.phone,
+              personalEmail: formData.personalEmail
+            },
+            new_values: updateData
           },
           created_at: new Date().toISOString()
         }])
@@ -282,7 +295,7 @@ export default function EditProfilePage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/student/profile")}
+                onClick={() => router.push("/dashboard/student/profile")} // Corregido: ruta completa
                 disabled={saving}
               >
                 Cancelar
@@ -306,7 +319,7 @@ export default function EditProfilePage() {
         </CardHeader>
         <CardContent>
           <Button variant="outline" asChild>
-            <Link href="/student/profile/request-change">
+            <Link href="/dashboard/student/profile/request-change"> {/* Corregido: ruta completa */}
               Solicitar Cambio Administrativo
             </Link>
           </Button>
