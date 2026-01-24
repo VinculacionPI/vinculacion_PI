@@ -99,7 +99,7 @@ export function StudentRegisterForm() {
     }
 
     // Validar teléfono
-    const phoneRegex = /^\d{8}$/
+    const phoneRegex = /^[2-8]\d{7}$/ 
     if (!phoneRegex.test(formData.phone)) {
       errors.phone = "El teléfono debe tener 8 dígitos"
     }
@@ -259,7 +259,7 @@ export function StudentRegisterForm() {
 
         // Si es error de permisos RLS, usar el método alternativo
         if (profileError.code === '42501') {
-          console.log("⚠️ Error de permisos RLS, intentando método alternativo...")
+          console.log("Error de permisos RLS, intentando método alternativo...")
           
           // Método alternativo: Intentar con fetch a una API route
           try {
@@ -285,24 +285,24 @@ export function StudentRegisterForm() {
             const contentType = response.headers.get('content-type')
             if (!contentType || !contentType.includes('application/json')) {
               const text = await response.text()
-              console.error("❌ Respuesta no es JSON:", text.substring(0, 200))
+              console.error(" Respuesta no es JSON:", text.substring(0, 200))
               throw new Error("Error del servidor - respuesta no válida")
             }
 
             const result = await response.json()
             
             if (!response.ok) {
-              console.error("❌ Error en API route:", result)
+              console.error(" Error en API route:", result)
               throw new Error(result.message || "Error al crear perfil via API")
             }
 
-            console.log("✅ Perfil creado via API route:", result)
+            console.log(" Perfil creado via API route:", result)
           } catch (apiError: any) {
-            console.error("❌ Error en método alternativo:", apiError)
+            console.error(" Error en método alternativo:", apiError)
             // Si falla todo, al menos el usuario está creado en Auth
             // Mostrar mensaje informativo
             setSuccess(true)
-            setError("✅ Usuario registrado exitosamente. Su perfil será activado manualmente por el administrador.")
+            setError("Usuario registrado exitosamente. Su perfil será activado manualmente por el administrador.")
             
             // No redirigir, dejar que el usuario vea el mensaje
             setIsLoading(false)
@@ -324,7 +324,7 @@ export function StudentRegisterForm() {
           throw new Error(`Error al crear perfil: ${profileError.message}`)
         }
       } else {
-        console.log("✅ Perfil creado exitosamente:", profileData)
+        console.log(" Perfil creado exitosamente:", profileData)
       }
 
       // 4. Registrar auditoría (opcional, usar try-catch para evitar errores)
@@ -348,21 +348,40 @@ export function StudentRegisterForm() {
         
         console.log("📋 Auditoría registrada")
       } catch (auditError) {
-        console.warn("⚠️ Error en auditoría (no crítico):", auditError)
+        console.warn(" Error en auditoría (no crítico):", auditError)
         // No lanzar error, solo continuar
       }
 
       // 5. Éxito - mostrar mensaje y redirigir
       setSuccess(true)
-      console.log("🎉 Registro completado exitosamente")
-
+      console.log(" Registro completado exitosamente")
+      // Después del registro exitoso, enviar email
+      try {
+        await fetch('/api/notifications/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: formData.institutionalEmail,
+            subject: 'Registro Exitoso - Sistema TFG',
+            template: 'registration-success',
+            data: {
+              name: formData.name,
+              email: formData.institutionalEmail,
+              carnet: formData.carnet
+            }
+          })
+        })
+      } catch (emailError) {
+        console.warn("Error enviando email de registro:", emailError)
+        // No lanzar error, solo registrar en consola
+      }
       // Redirigir después de 3 segundos
       setTimeout(() => {
         router.push('/login?registered=true&email=' + encodeURIComponent(formData.institutionalEmail))
       }, 3000)
 
     } catch (err) {
-      console.error('💥 Error completo en registro:', err)
+      console.error(' Error completo en registro:', err)
       setError(err instanceof Error ? err.message : "Error desconocido durante el registro")
     } finally {
       setIsLoading(false)

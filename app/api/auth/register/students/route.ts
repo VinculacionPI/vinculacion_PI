@@ -24,11 +24,13 @@ const studentSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("📨 API Route: /api/register/students recibiendo solicitud...")
-
+    console.log(' API Route: /api/register/students recibiendo solicitud...')
+    
+    // 1. Parsear y validar datos del request
     const body = await request.json()
-    console.log("📦 Datos recibidos:", JSON.stringify(body, null, 2))
-
+    console.log(' Datos recibidos:', JSON.stringify(body, null, 2))
+    
+    // Validar datos
     const validatedData = studentSchema.parse({
       ...body,
       semester: Number(body.semester),
@@ -43,12 +45,13 @@ export async function POST(request: NextRequest) {
       .select("id", { count: "exact", head: true })
 
     if (connectionError) {
-      console.error("❌ Error de conexión a Supabase:", connectionError)
-      throw new Error("Error de conexión a la base de datos")
+      console.error(' Error de conexión a Supabase:', connectionError)
+      throw new Error('Error de conexión a la base de datos')
     }
-
-    console.log("🔍 Verificando unicidad de datos...")
-
+    
+    console.log(' Verificando unicidad de datos...')
+    
+    // 3. Verificar que los datos sean únicos
     const { data: existingData, error: checkError } = await supabase
       .from("USERS")
       .select("id, email, cedula, carnet")
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
       )
 
     if (checkError) {
-      console.error("❌ Error verificando datos:", checkError)
+      console.error(' Error verificando datos:', checkError)
       throw new Error(`Error verificando datos: ${checkError.message}`)
     }
 
@@ -83,9 +86,10 @@ export async function POST(request: NextRequest) {
       address: validatedData.address.trim(),
       created_at: new Date().toISOString(),
     }
-
-    console.log("💾 Insertando datos en tabla USERS:", JSON.stringify(userData, null, 2))
-
+    
+    console.log(' Insertando datos en tabla users:', JSON.stringify(userData, null, 2))
+    
+    // 5. Insertar en la tabla users
     const { data: insertedData, error: insertError } = await supabase
       .from("USERS")
       .insert([userData])
@@ -93,7 +97,9 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insertError) {
-      console.error("❌ Error insertando usuario:", {
+
+      console.error(' Error insertando usuario:', {
+
         code: insertError.code,
         message: insertError.message,
         details: insertError.details,
@@ -105,25 +111,31 @@ export async function POST(request: NextRequest) {
 
       throw new Error(`Error al crear usuario: ${insertError.message}`)
     }
-
-    console.log("✅ Usuario creado exitosamente:", insertedData.id)
-
-    // ✅ Metadata en auth.users (REQUIERE service role)
+    
+    console.log(' Usuario creado exitosamente:', insertedData.id)
+    
+    // 6. Actualizar metadata del usuario en auth.users
     try {
-      const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(validatedData.user_id, {
-        user_metadata: {
-          name: validatedData.name,
-          carnet: validatedData.carnet,
-          cedula: validatedData.cedula,
-          semester: validatedData.semester,
-          role: "student",
-        },
-      })
-
-      if (updateAuthError) console.warn("⚠️ Error actualizando metadata de auth (no crítico):", updateAuthError)
-      else console.log("✅ Metadata de auth actualizada")
+      const { error: updateAuthError } = await supabase.auth.admin.updateUserById(
+        validatedData.user_id,
+        {
+          user_metadata: {
+            name: validatedData.name,
+            carnet: validatedData.carnet,
+            cedula: validatedData.cedula,
+            semester: validatedData.semester,
+            role: 'student'
+          }
+        }
+      )
+      
+      if (updateAuthError) {
+        console.warn(' Error actualizando metadata de auth (no crítico):', updateAuthError)
+      } else {
+        console.log(' Metadata de auth actualizada')
+      }
     } catch (authError) {
-      console.warn("⚠️ Error en actualización de auth:", authError)
+      console.warn(' Error en actualización de auth:', authError)
     }
 
     // Auditoría opcional
@@ -146,10 +158,15 @@ export async function POST(request: NextRequest) {
         created_at: new Date().toISOString(),
       }
 
-      await supabase.from("audit_logs").insert([auditData])
-      console.log("📋 Auditoría registrada")
+      
+      await supabase
+        .from('audit_logs')
+        .insert([auditData])
+      
+      console.log(' Auditoría registrada')
     } catch (auditError) {
-      console.warn("⚠️ Error en auditoría (no crítico):", auditError)
+      console.warn(' Error en auditoría (no crítico):', auditError)
+
     }
 
     return NextResponse.json(
@@ -167,7 +184,10 @@ export async function POST(request: NextRequest) {
       { status: 201, headers: { "Content-Type": "application/json" } }
     )
   } catch (error) {
-    console.error("💥 Error en API route:", error)
+
+    console.error(' Error en API route:', error)
+    
+    // Manejar errores de validación de Zod
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
