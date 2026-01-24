@@ -1,14 +1,29 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 import { OpportunityCard, type Opportunity } from "@/components/shared/opportunity-card"
 import { Pagination } from "@/components/shared/pagination"
 import { LoadingState } from "@/components/shared/loading-state"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatsCard } from "@/components/shared/stats-card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Briefcase, Bookmark, Search, TrendingUp } from "lucide-react"
+import { createClient } from "@/lib/supabase"
+import { 
+  Briefcase, Bookmark, Search, TrendingUp, 
+  User, Bell, GraduationCap
+} from "lucide-react"
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge"
+import { useRouter } from "next/navigation"
 
 const ITEMS_PER_PAGE = 12
 
@@ -29,8 +44,10 @@ type TfgFilters = {
 }
 
 export default function StudentDashboardPage() {
+  const router = useRouter()
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [userProfile, setUserProfile] = useState<any>(null)
 
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -48,6 +65,100 @@ export default function StudentDashboardPage() {
 
   const [interestedIds, setInterestedIds] = useState<Set<string>>(new Set())
   const [interestedTotal, setInterestedTotal] = useState(0)
+
+  // Obtener perfil del usuario
+  const fetchUserProfile = async () => {
+  try {
+    // 1. Crear cliente Supabase
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    // 2. Obtener sesión del usuario
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    
+    if (sessionError) {
+      console.error("Error obteniendo sesión:", sessionError)
+      throw sessionError
+    }
+
+    if (!session) {
+      console.log("No hay sesión activa")
+      // Redirigir a login si no hay sesión
+      // router.push('/login')
+      return
+    }
+
+    console.log("Usuario autenticado ID:", session.user.id)
+
+    // 3. Obtener perfil desde la tabla USERS
+    const { data: profile, error: profileError } = await supabase
+      .from("USERS")
+      .select("*")
+      .eq("id", session.user.id)
+      .single()
+
+    if (profileError) {
+      console.error("Error obteniendo perfil:", profileError)
+      
+      // Si el perfil no existe en USERS, pero sí en auth.users
+      // Podemos crear un perfil básico
+      if (profileError.code === 'PGRST116') { // Código para "no encontrado"
+        console.log("Perfil no encontrado en USERS, creando uno básico...")
+        
+        // Crear perfil básico con datos de auth
+        const basicProfile = {
+          id: session.user.id,
+          email: session.user.email || "",
+          name: session.user.user_metadata?.name || "Usuario",
+          role: session.user.user_metadata?.role || "student",
+          status: "active",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        
+        // Insertar en USERS
+        const { data: newProfile, error: insertError } = await supabase
+          .from("USERS")
+          .insert([basicProfile])
+          .select()
+          .single()
+          
+        if (insertError) {
+          console.error("Error creando perfil:", insertError)
+          throw insertError
+        }
+        
+        setUserProfile(newProfile)
+        console.log("Perfil creado:", newProfile.name)
+        return
+      }
+      
+      throw profileError
+    }
+
+    // 4. Actualizar estado con el perfil real
+    setUserProfile(profile)
+    console.log("Perfil obtenido de Supabase:", profile.name)
+
+  } catch (error) {
+    console.error("Error obteniendo perfil:", error)
+    
+    // Fallback: usar datos mock si hay error (opcional)
+    const mockProfile = {
+      id: "fallback-user-id",
+      name: "Estudiante Demo",
+      email: "demo@estudiante.com",
+      role: "student",
+      semester: 9,
+      created_at: new Date().toISOString(),
+    }
+    
+    setUserProfile(mockProfile)
+    console.warn("Usando perfil de fallback debido a error:", error)
+  }
+}
 
   const fetchCompanies = async () => {
     try {
@@ -115,7 +226,6 @@ export default function StudentDashboardPage() {
 
       await fetchInterestsBatch(opps)
 
-      // el total de interesados no aplica en tab "all"
       setInterestedTotal(0)
     } catch (err) {
       console.error("Error fetching opportunities:", err)
@@ -134,12 +244,8 @@ export default function StudentDashboardPage() {
       params.set("page", String(currentPage))
       params.set("pageSize", String(ITEMS_PER_PAGE))
 
-      // Para CU-015: filtrado en lista personal
       if (filters.q.trim()) params.set("q", filters.q.trim())
-
-      // Si querés filtrar estado desde UI, aquí podrías setearlo:
-      // params.set("status", "ACTIVE")
-
+        
       const res = await fetch(`/api/my-interests?${params.toString()}`, { cache: "no-store" })
       const json = (await res.json()) as OpportunitiesApiResponse
 
@@ -156,8 +262,7 @@ export default function StudentDashboardPage() {
       setOpportunities(opps)
       setTotalPages(json.totalPages ?? 1)
       setInterestedTotal(json.total ?? opps.length)
-
-      // Como esta lista es solo interesadas, todos los ids vienen marcados
+      
       setInterestedIds(new Set(opps.map((o) => o.id)))
     } catch (err) {
       console.error("Error fetching my interests:", err)
@@ -171,6 +276,7 @@ export default function StudentDashboardPage() {
   }
 
   useEffect(() => {
+    fetchUserProfile()
     fetchCompanies()
   }, [])
 
@@ -210,19 +316,19 @@ export default function StudentDashboardPage() {
         return copy
       })
 
-      // Si estás en "Interesadas" y retirás interés, refrescá la lista desde backend
       if (activeTab === "interested" && !next) {
         await fetchOpportunitiesInterested()
         return
       }
 
-      // Si estás en "Todas" solo actualizá local, pero opcionalmente refrescá batch
-      // await fetchInterestsBatch(opportunities)
-
     } catch (e) {
       console.error("Error toggling interest:", e)
       alert("Error de red.")
     }
+  }
+
+  const handleLogout = async () => {
+    router.push("/login")
   }
 
   const stats = useMemo(() => {
@@ -237,10 +343,14 @@ export default function StudentDashboardPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Oportunidades TFG Disponibles</h1>
-        <p className="text-muted-foreground">Explora, filtra y consulta oportunidades de TFG</p>
+        <h1 className="text-3xl font-bold text-foreground mb-2">
+          Oportunidades TFG Disponibles
+        </h1>
+        <p className="text-muted-foreground">
+          Explora, filtra y consulta oportunidades de TFG
+        </p>
       </div>
-
+      
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatsCard title="Total" value={stats.total} icon={Briefcase} />
         <StatsCard title="Prácticas" value={stats.internships} icon={TrendingUp} />
@@ -309,7 +419,7 @@ export default function StudentDashboardPage() {
             </div>
 
             <button
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
               onClick={() => setFilters({ q: "", mode: "", duration: "", companyId: "" })}
               type="button"
             >
