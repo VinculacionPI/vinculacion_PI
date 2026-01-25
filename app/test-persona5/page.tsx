@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { 
   obtenerDashboardEmpresa,
   explorarOportunidades,
-} from "@/lib/services/persona5-backend"
+} from "@/lib/services/api"
 
 export default function TestPersona5Page() {
   const [resultado, setResultado] = useState<any>(null)

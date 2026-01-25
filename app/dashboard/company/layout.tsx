@@ -25,3 +25,4 @@ export default async function CompanyDashboardLayout({ children }: { children: R
     </div>
   )
 }
+

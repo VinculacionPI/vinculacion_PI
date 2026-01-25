@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Download, FileText, TrendingUp, Users, CheckCircle2, XCircle } from "lucide-react"
-import { generarInformeTFG } from "@/lib/services/persona5-backend"
+import { generarInformeTFG } from "@/lib/services/api"
 import { supabase } from "@/lib/supabase"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from "recharts"
 

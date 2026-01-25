@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,7 @@ export function ForgotPasswordForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,11 +32,14 @@ export function ForgotPasswordForm() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || "Error al enviar el correo")
+        throw new Error(data.message || "Error al enviar el código")
       }
 
       setSuccess(true)
-      setEmail("")
+      
+      setTimeout(() => {
+        router.push(`/reset-password?email=${encodeURIComponent(email)}`)
+      }, 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido")
     } finally {
@@ -53,9 +57,9 @@ export function ForgotPasswordForm() {
         {success ? (
           <div className="text-center py-6">
             <CheckCircle2 className="h-12 w-12 text-accent mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Correo Enviado</h3>
+            <h3 className="text-lg font-semibold mb-2">Código Enviado</h3>
             <p className="text-sm text-muted-foreground">
-              Revisa tu bandeja de entrada para restablecer tu contraseña.
+              Revisa tu correo e ingresa el código en la siguiente pantalla.
             </p>
           </div>
         ) : (
@@ -82,7 +86,7 @@ export function ForgotPasswordForm() {
                   Enviando...
                 </>
               ) : (
-                "Enviar Enlace de Recuperación"
+                "Enviar Código"
               )}
             </Button>
           </form>

@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 import { Briefcase, Search } from "lucide-react"
 import Link from "next/link"
-import { explorarOportunidades } from "@/lib/services/persona5-backend"
+import { explorarOportunidades } from "@/lib/services/api"
 
 const ITEMS_PER_PAGE = 9
 

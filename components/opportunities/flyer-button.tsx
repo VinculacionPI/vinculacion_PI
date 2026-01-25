@@ -16,7 +16,7 @@ export function FlyerButton({
       window.open(currentFlyerUrl, '_blank')
     } else {
       // Generar y mostrar flyer automático
-      import('@/lib/services/persona5-backend').then(({ generarFlyer }) => {
+      import('@/lib/services/api').then(({ generarFlyer }) => {
         generarFlyer(opportunityId).then(result => {
           if (result.success) {
             const win = window.open('', '_blank')

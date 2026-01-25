@@ -32,10 +32,13 @@ export function DashboardHeader({ userName = "Usuario", userRole = "Estudiante" 
     router.push("/login")
   }
 
+  // Determine home link based on login status
+  const homeLink = userRole ? `/dashboard/${userRole.toLowerCase()}` : "/"
+
   return (
     <header className="border-b border-border bg-card sticky top-0 z-10">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href={homeLink} className="flex items-center gap-2">
           <Briefcase className="h-6 w-6 text-primary" />
           <div>
             <h1 className="text-lg font-bold text-foreground">TEC Empleos</h1>

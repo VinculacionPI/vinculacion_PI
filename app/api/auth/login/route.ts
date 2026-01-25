@@ -21,13 +21,28 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Obtener rol del user_metadata
+  const role = data.user.user_metadata?.role || 'student'
+  const company_id = data.user.user_metadata?.company_id || null
+
+  console.log('Login exitoso:', { email, role, company_id })
+
   // Response final
   const out = NextResponse.json(
-    { ok: true, user: { id: data.user.id, email: data.user.email } },
+    { 
+      ok: true, 
+      user: { 
+        id: data.user.id, 
+        email: data.user.email,
+        role,
+        company_id
+      },
+      role // ← IMPORTANTE: login-form.tsx usa esto para redireccionar
+    },
     { status: 200 }
   )
 
-  // Copiar Set-Cookie del “res” (donde supabase escribió cookies) al response final
+  // Copiar Set-Cookie del "res" (donde supabase escribió cookies) al response final
   const setCookie = res.headers.get("set-cookie")
   if (setCookie) out.headers.set("set-cookie", setCookie)
 

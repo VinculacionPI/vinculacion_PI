@@ -71,7 +71,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   website: null,
                   flyer_url: data.flyer_url || null,
                 })
-        import('@/lib/services/persona5-backend').then(({ registrarVisualizacion }) => {
+        import('@/lib/services/api').then(({ registrarVisualizacion }) => {
           registrarVisualizacion(id).catch(err => console.log('Error registrando visualización:', err))
         })
       } catch (err) {
