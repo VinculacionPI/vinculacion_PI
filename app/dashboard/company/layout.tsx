@@ -5,29 +5,25 @@ import { redirect } from "next/navigation"
 
 export default async function CompanyDashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createServerSupabase()
-    
-    // Obtener el usuario autenticado
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      redirect("/login")
-    }
   
-    // Obtener datos adicionales del usuario desde la tabla users
-    const { data: userData } = await supabase
-      .from("USERS")
-      .select("name, email, role")
-      .eq("id", user.id)
-      .single()
+  // Obtener el usuario autenticado
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
   
-    // Verificar que el usuario tenga el rol correcto
-    if (userData?.role !== "company") {
-      redirect(`/dashboard/${userData?.role.toLowerCase() || "student"}`)
-    }
+  if (authError || !user) {
+    redirect("/login")
+  }
+
+  // Obtener rol desde user_metadata
+  const role = user.user_metadata?.role || 'student'
   
-    const userName = userData?.name || userData?.email || "Usuario"
-    const userRole = userData?.role || "Empresa"
-  
+  // Verificar que el usuario tenga el rol correcto
+  if (role !== "company") {
+    redirect(`/dashboard/${role.toLowerCase()}`)
+  }
+
+  const userName = user.user_metadata?.name || user.email || "Usuario"
+  const userRole = "Empresa"
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader userName={userName} userRole={userRole} />
@@ -35,5 +31,4 @@ export default async function CompanyDashboardLayout({ children }: { children: R
     </div>
   )
 }
-
 

@@ -25,7 +25,7 @@ import Link from "next/link"
 import { obtenerDashboardEmpresa, obtenerOportunidadesEmpresa } from "@/lib/services/api"
 import { DashboardStats } from "@/components/company/dashboard-stats"
 import { LoadingState } from "@/components/shared/loading-state"
-import { getCompanyIdFromUrl } from '@/lib/auth/get-current-user'
+import { getCurrentCompanyId } from '@/lib/auth/get-current-user'
 import { Trash2, Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
@@ -43,7 +43,7 @@ export default function CompanyDashboardPage() {
   const router = useRouter()
   
   // Obtener empresa_id del URL
-  const empresaId = getCompanyIdFromUrl()
+  const [empresaId, setEmpresaId] = useState<string | null>(null)
 
   const [opportunities, setOpportunities] = useState<any[]>([])
   const [filteredOpportunities, setFilteredOpportunities] = useState<any[]>([])
@@ -59,17 +59,23 @@ export default function CompanyDashboardPage() {
     dateTo: ''
   })
 
-  useEffect(() => {
-    if (empresaId) {
-      loadDashboardData()
-      loadOpportunities()
-    }
+    // Cargar company_id del usuario autenticado
+      useEffect(() => {
+        async function loadCompanyId() {
+          const { getCurrentCompanyId } = await import('@/lib/auth/get-current-user')
+          const id = await getCurrentCompanyId()
+          setEmpresaId(id)
+        }
+        loadCompanyId()
+      }, [])
+
+      useEffect(() => {
+        if (empresaId) {
+          loadDashboardData()
+          loadOpportunities()
+        }
+
   }, [empresaId])
-
-  useEffect(() => {
-    applyFilters()
-  }, [opportunities, filters, activeTab])
-
   const loadDashboardData = async () => {
     try {
       const response = await obtenerDashboardEmpresa(empresaId!, 30)
