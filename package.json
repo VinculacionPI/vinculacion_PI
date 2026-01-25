@@ -46,6 +46,7 @@
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
+    "html-pdf-node": "^1.0.8",
     "html2canvas": "^1.4.1",
     "input-otp": "1.4.1",
     "jspdf": "^4.0.0",
