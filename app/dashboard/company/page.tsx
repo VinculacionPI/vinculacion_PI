@@ -22,11 +22,10 @@ import {
   X
 } from "lucide-react"
 import Link from "next/link"
-import { obtenerDashboardEmpresa, obtenerOportunidadesEmpresa } from "@/lib/services/persona5-backend"
 import { DashboardStats } from "@/components/company/dashboard-stats"
 import { LoadingState } from "@/components/shared/loading-state"
 import { getCompanyIdFromUrl } from '@/lib/auth/get-current-user'
-
+import { CompanyMenu } from "@/components/company/company-menu"
 
 interface Filters {
   search: string
@@ -70,9 +69,15 @@ export default function CompanyDashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const response = await obtenerDashboardEmpresa(empresaId!, 30)
-      if (response.success) {
-        setDashboardData(response.data)
+      const res = await fetch(`/api/company/dashboard/metrics`, {
+        method: 'GET',
+        credentials: 'include' // para que envíe la cookie de sesión
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setDashboardData(data)
+      } else {
+        console.error('Error cargando dashboard:', data.message)
       }
     } catch (err) {
       console.error('Error cargando dashboard:', err)
@@ -82,14 +87,21 @@ export default function CompanyDashboardPage() {
   const loadOpportunities = async () => {
     setIsLoading(true)
     try {
-      const data = await obtenerOportunidadesEmpresa(empresaId!)
-      setOpportunities(data)
-      const filtered = data.filter((opp: any) => 
+      const res = await fetch(`/api/company/dashboard/opportunity`, {
+        method: 'GET',
+        credentials: 'include'
+      })
+      const data = await res.json()
+      const opportunitiesArray = data.opportunities || []  // asegúrate de que sea array
+      setOpportunities(opportunitiesArray)
+
+      const filtered = opportunitiesArray.filter((opp: any) => 
         activeTab === 'all' || 
         (activeTab === 'active' && opp.status === 'OPEN') ||
         (activeTab === 'inactive' && opp.status === 'CLOSED')
       )
       setFilteredOpportunities(filtered)
+
     } catch (err) {
       console.error('Error cargando oportunidades:', err)
       setOpportunities([])
@@ -97,6 +109,7 @@ export default function CompanyDashboardPage() {
       setIsLoading(false)
     }
   }
+
 
   const applyFilters = () => {
     let filtered = [...opportunities]
@@ -214,18 +227,28 @@ export default function CompanyDashboardPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard Empresarial</h1>
-          <p className="text-muted-foreground">Gestiona tus oportunidades y visualiza métricas</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Dashboard Empresarial
+          </h1>
+          <p className="text-muted-foreground">
+            Gestiona tus oportunidades y visualiza métricas
+          </p>
         </div>
-        <Link href={`/dashboard/company/opportunities/new?empresa_id=${empresaId}`}>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva Oportunidad
-          </Button>
-        </Link>
+
+        <div className="flex items-center gap-4">
+          <Link href={`/dashboard/company/opportunities/new?empresa_id=${empresaId}`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Nueva Oportunidad
+            </Button>
+          </Link>
+
+          <CompanyMenu />
+        </div>
       </div>
+
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-8">

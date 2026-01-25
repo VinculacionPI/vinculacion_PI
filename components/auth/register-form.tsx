@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Loader2, GraduationCap, Users, Building2, ChevronLeft } from "lucide-react"
 import { StudentRegisterForm } from "./student-register-form"
+import { CompanyRegisterForm } from "./company-register-form"
 
 type UserRole = "student" | "graduate" | "company"
 
@@ -23,7 +24,7 @@ interface BasicFormData {
 
 export function RegisterForm() {
   const router = useRouter()
-  const [showStudentForm, setShowStudentForm] = useState(false)
+  const [activeForm, setActiveForm] = useState<"none" | "student" | "company">("none")
   const [formData, setFormData] = useState<BasicFormData>({
     name: "",
     email: "",
@@ -37,16 +38,12 @@ export function RegisterForm() {
   // Si el usuario selecciona "Estudiante", mostrar el formulario específico
   const handleRoleSelect = (role: UserRole) => {
     setFormData(prev => ({ ...prev, role }))
-    
-    if (role === "student") {
-      setShowStudentForm(true)
-    } else {
-      setShowStudentForm(false)
-    }
+    setActiveForm("none")
   }
 
+
   const handleBackToRoleSelection = () => {
-    setShowStudentForm(false)
+    setActiveForm("none")
     setError("")
   }
 
@@ -98,8 +95,8 @@ export function RegisterForm() {
     }
   }
 
-  // Si se seleccionó estudiante y debemos mostrar el formulario específico
-  if (showStudentForm) {
+  // Si se seleccionó algún formulario específico, mostrarlo
+  if (activeForm === "student") {
     return (
       <div className="space-y-4">
         <Button
@@ -110,10 +107,29 @@ export function RegisterForm() {
           <ChevronLeft className="h-4 w-4" />
           Volver a selección de tipo de usuario
         </Button>
+
         <StudentRegisterForm />
       </div>
     )
   }
+
+  if (activeForm === "company") {
+    return (
+      <div className="space-y-4">
+        <Button
+          variant="ghost"
+          onClick={handleBackToRoleSelection}
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Volver a selección de tipo de usuario
+        </Button>
+
+        <CompanyRegisterForm />
+      </div>
+    )
+  }
+
 
   // Formulario original para selección de rol
   return (
@@ -193,14 +209,14 @@ export function RegisterForm() {
           </div>
 
           {/* Mostrar formulario según el rol seleccionado (excepto estudiante) */}
-          {formData.role !== "student" && (
+          {formData.role !== "student" && formData.role !== "company" && (
             <div className="space-y-6 pt-4 border-t">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-base">Nombre Completo</Label>
                 <Input
                   id="name"
                   type="text"
-                  placeholder={formData.role === "company" ? "Nombre de la empresa" : "Nombre completo"}
+                  placeholder={ "Nombre completo"}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
@@ -214,7 +230,7 @@ export function RegisterForm() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder={formData.role === "company" ? "correo@empresa.com" : "tu@email.com"}
+                  placeholder={ "Correo electrónico"}
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
@@ -263,16 +279,6 @@ export function RegisterForm() {
                 </div>
               )}
 
-              {formData.role === "company" && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-800">
-                    <strong>Nota:</strong> Como empresa, tu registro será revisado por nuestro 
-                    equipo administrativo. Te contactaremos para verificar la información 
-                    antes de activar tu cuenta.
-                  </p>
-                </div>
-              )}
-
               {error && (
                 <div className="text-sm text-destructive bg-destructive/10 p-4 rounded-md border border-destructive/20">
                   {error}
@@ -291,19 +297,19 @@ export function RegisterForm() {
                     Creando cuenta...
                   </>
                 ) : (
-                  `Registrarme como ${formData.role === "company" ? "Empresa" : "Graduado"}`
+                  `Registrarme como ${"Graduado"}`
                 )}
               </Button>
             </div>
           )}
 
           {/* Si seleccionó estudiante, mostrar botón para continuar */}
-          {formData.role === "student" && !showStudentForm && (
+          {formData.role === "student" && (
             <div className="pt-4 border-t">
               <Button
                 type="button"
                 className="w-full h-12 text-base font-semibold"
-                onClick={() => setShowStudentForm(true)}
+                onClick={() => setActiveForm("student")}
                 size="lg"
               >
                 Continuar con Registro de Estudiante
@@ -318,6 +324,37 @@ export function RegisterForm() {
                   <li>• Contraseña segura (mínimo 8 caracteres)</li>
                 </ul>
               </div>
+            </div>
+          )}
+
+          {/* Si seleccionó empresa, mostrar botón para continuar */}
+          {formData.role === "company" && (
+            <div className="pt-4 border-t">
+              <Button
+                type="button"
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => setActiveForm("company")}
+                size="lg"
+              >
+                Continuar con Registro de Empresa
+              </Button>
+              
+              <div className="mt-4 p-4 bg-muted rounded-lg">
+                <h4 className="font-semibold text-sm mb-2">Requisitos para empresas:</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Nombre legal de la empresa</li>
+                  <li>• Correo empresarial</li>
+                  <li>• Persona de contacto</li>
+                  <li>• Contraseña segura (mínimo 8 caracteres)</li>
+                </ul>
+              </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Nota:</strong> Como empresa, tu registro será revisado por nuestro 
+                    equipo administrativo. Te contactaremos para verificar la información 
+                    antes de activar tu cuenta.
+                  </p>
+                </div>
             </div>
           )}
         </form>

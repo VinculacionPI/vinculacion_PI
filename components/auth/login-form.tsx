@@ -16,14 +16,20 @@ export function LoginForm() {
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [loginType, setLoginType] = useState<"user" | "company">("user")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
+    const endpoint =
+      loginType === "company"
+        ? "/api/auth/company-login"
+        : "/api/auth/login"
+
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -35,15 +41,18 @@ export function LoginForm() {
         throw new Error(data.message || "Error al iniciar sesión")
       }
 
-      // Redirect based on user role
-      const roleRoutes: Record<string, string> = {
-        student: "/dashboard/student",
-        graduate: "/dashboard/graduate",
-        company: "/dashboard/company",
-        admin: "/dashboard/admin",
-      }
+      // redirects separados
+      if (loginType === "company") {
+        router.push("/dashboard/company")
+      } else {
+        const roleRoutes: Record<string, string> = {
+          student: "/dashboard/student",
+          graduate: "/dashboard/graduate",
+          admin: "/dashboard/admin",
+        }
 
-      router.push(roleRoutes[data.role] || "/dashboard/student")
+        router.push(roleRoutes[data.role] || "/dashboard/student")
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido")
     } finally {
@@ -59,6 +68,27 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={loginType === "user" ? "default" : "outline"}
+              className="flex-1"
+              onClick={() => setLoginType("user")}
+              disabled={isLoading}
+            >
+              Usuario
+            </Button>
+
+            <Button
+              type="button"
+              variant={loginType === "company" ? "default" : "outline"}
+              className="flex-1"
+              onClick={() => setLoginType("company")}
+              disabled={isLoading}
+            >
+              Empresa
+            </Button>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="email">Correo Electrónico</Label>
             <Input
