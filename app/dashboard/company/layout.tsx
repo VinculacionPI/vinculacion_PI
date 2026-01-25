@@ -19,7 +19,7 @@ export default async function CompanyDashboardLayout({ children }: { children: R
     <div className="min-h-screen bg-background">
       <DashboardHeader
         userName={company.name}
-        userRole="Empresa"
+        userRole="company"
       />
       {children}
     </div>
