@@ -1,6 +1,24 @@
 import Link from "next/link"
+import { Suspense } from "react"
 import { ResetPasswordForm } from "@/components/auth/reset-password-form"
-import { Briefcase } from "lucide-react"
+import { Briefcase, Loader2 } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+
+function ResetPasswordFormSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Cargando...</CardTitle>
+        <CardDescription>Preparando formulario</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="text-center py-6">
+          <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-primary" />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function ResetPasswordPage() {
   return (
@@ -15,7 +33,9 @@ export default function ResetPasswordPage() {
           <p className="text-muted-foreground">Ingresa tu nueva contraseña</p>
         </div>
 
-        <ResetPasswordForm />
+        <Suspense fallback={<ResetPasswordFormSkeleton />}>
+          <ResetPasswordForm />
+        </Suspense>
       </div>
     </div>
   )
