@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { FileSpreadsheet, Download } from "lucide-react"
-import { generarInformeTFG } from "@/lib/services/persona5-backend"
+import { generarInformeTFG } from "@/lib/services/api"
 
 export function InformeTFGButton() {
   const [isGenerating, setIsGenerating] = useState(false)

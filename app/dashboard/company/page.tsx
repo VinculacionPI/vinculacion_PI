@@ -22,7 +22,7 @@ import {
   X
 } from "lucide-react"
 import Link from "next/link"
-import { obtenerDashboardEmpresa, obtenerOportunidadesEmpresa } from "@/lib/services/persona5-backend"
+import { obtenerDashboardEmpresa, obtenerOportunidadesEmpresa } from "@/lib/services/api"
 import { DashboardStats } from "@/components/company/dashboard-stats"
 import { LoadingState } from "@/components/shared/loading-state"
 import { getCompanyIdFromUrl } from '@/lib/auth/get-current-user'

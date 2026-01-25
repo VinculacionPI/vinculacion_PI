@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Loader2, Plus, X, FileText, Upload } from "lucide-react"
 import { UploadFlyer } from "@/components/company/upload-flyer"
-import { generarFlyer } from "@/lib/services/persona5-backend"
+import { generarFlyer } from "@/lib/services/api"
 import { supabase } from "@/lib/supabase"
 import type { OpportunityType } from "@/lib/types"
 import { getCurrentCompanyId } from '@/lib/auth/get-current-user'
@@ -100,11 +100,14 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
             async function loadCompanyEmail() {
               if (!formData.contactInfo) {
                 const empresaId = await getCurrentCompanyId()
-                const { data: company } = await supabase
+                const { data: company, error: companyError } = await supabase
                   .from('COMPANY')
                   .select('email')
                   .eq('id', empresaId)
                   .single()
+
+                console.log('Empresa encontrada:', company)
+                console.log('Error empresa:', companyError)
                 
                 if (company?.email) {
                   setFormData(prev => ({ ...prev, contactInfo: company.email }))
