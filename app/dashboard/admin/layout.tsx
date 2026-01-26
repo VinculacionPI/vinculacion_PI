@@ -21,12 +21,12 @@ export default async function AdminDashboardLayout({ children }: { children: Rea
     .single()
 
   // Verificar que el usuario tenga el rol correcto
-  if (userData?.role !== "admin") {
+  if (userData?.role.toLowerCase() !== "admin") {
     redirect(`/dashboard/${userData?.role.toLowerCase() || "student"}`)
   }
 
   const userName = userData?.name || userData?.email || "Administrador"
-  const userRole = userData?.role || "Administrador"
+  const userRole = userData?.role.toLowerCase() || "administrador"
 
   return (
     <div className="min-h-screen bg-background">

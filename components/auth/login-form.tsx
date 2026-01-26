@@ -51,7 +51,7 @@ export function LoginForm() {
           admin: "/dashboard/admin",
         }
 
-        router.push(roleRoutes[data.role] || "/dashboard/student")
+        router.push(roleRoutes[data.role.toLowerCase()] || "/dashboard/student")
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido")

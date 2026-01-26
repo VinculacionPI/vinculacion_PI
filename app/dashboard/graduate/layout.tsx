@@ -21,12 +21,12 @@ export default async function GraduateDashboardLayout({ children }: { children: 
     .single()
 
   // Verificar que el usuario tenga el rol correcto
-  if (userData?.role !== "graduate") {
+  if (userData?.role.toLowerCase() !== "graduate") {
     redirect(`/dashboard/${userData?.role.toLowerCase() || "student"}`)
   }
 
   const userName = userData?.name || userData?.email || "Usuario"
-  const userRole = userData?.role || "Graduado"
+  const userRole = userData?.role.toLowerCase() || "graduate"
 
   return (
     <div className="min-h-screen bg-background">

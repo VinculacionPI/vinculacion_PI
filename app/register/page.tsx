@@ -21,7 +21,7 @@ export default function RegisterPage() {
           const data = await response.json()
           // User is authenticated, redirect to their dashboard
           if (data.role) {
-            router.push(`/dashboard/${data.role}`)
+            router.push(`/dashboard/${data.role.toLowerCase()}`)
             // Keep showing loader during redirect
             return
           }
