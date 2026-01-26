@@ -55,14 +55,54 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // LOGIN OK
+  // LOGIN OK - Check user status
   const role = data.user.user_metadata?.role || "student"
   const company_id = data.user.user_metadata?.company_id || null
+
+  // Check if user status is active
+  const { data: userData, error: userError } = await supabase
+    .from("USERS")
+    .select("status")
+    .eq("id", data.user.id)
+    .single()
+
+  if (userError || !userData) {
+    console.error("Error fetching user status:", userError)
+    return NextResponse.json(
+      { message: "Error al verificar el estado del usuario" },
+      { status: 500 }
+    )
+  }
+
+  // Block login if status is not active
+  if (userData.status.toLowerCase() !== "active") {
+    console.log("Login blocked - User status:", userData.status)
+    
+    let statusMessage = "Tu cuenta no está activa"
+    if (userData.status.toLowerCase() === "pending") {
+      // Custom message for graduates
+      if (role === "graduate") {
+        statusMessage = "Su solicitud está pendiente, actualmente está siendo procesada."
+      } else {
+        statusMessage = "Tu cuenta está pendiente de aprobación por un administrador"
+      }
+    } else if (userData.status.toLowerCase() === "suspended") {
+      statusMessage = "Tu cuenta ha sido suspendida. Contacta al administrador"
+    } else if (userData.status.toLowerCase() === "rejected") {
+      statusMessage = "Tu solicitud de registro fue rechazada"
+    }
+
+    return NextResponse.json(
+      { message: statusMessage, status: userData.status },
+      { status: 403 }
+    )
+  }
 
   console.log("Login exitoso:", {
     email: data.user.email,
     role,
     company_id,
+    status: userData.status,
   })
 
   const out = NextResponse.json(
