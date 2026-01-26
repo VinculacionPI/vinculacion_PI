@@ -1,12 +1,22 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { StatsCard } from "@/components/shared/stats-card"
 import { LoadingState } from "@/components/shared/loading-state"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Building2, Briefcase, Users, CheckCircle, Clock } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Building2, Briefcase, Users, CheckCircle, Clock, User, X } from "lucide-react"
 import { CompanyApprovalsTable } from "@/components/admin/company-approvals-table"
 import { OpportunityApprovalsTable } from "@/components/admin/opportunity-approvals-table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type AdminStats = {
   totalCompanies: number
@@ -18,8 +28,22 @@ type AdminStats = {
 }
 
 export default function AdminDashboardPage() {
+  const router = useRouter()
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+
+      router.push("/login")
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error)
+    }
+  }
 
   useEffect(() => {
     const fetchAdminStats = async () => {
@@ -70,9 +94,28 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Panel de Administración</h1>
-        <p className="text-muted-foreground">Gestiona aprobaciones y supervisa la plataforma</p>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Panel de Administración</h1>
+          <p className="text-muted-foreground">Gestiona aprobaciones y supervisa la plataforma</p>
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <User className="h-4 w-4" />
+              Admin
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+              <X className="h-4 w-4 mr-2" />
+              Cerrar Sesión
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
