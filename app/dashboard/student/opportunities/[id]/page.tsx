@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Download, Bookmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,15 +12,13 @@ type OpportunityDetail = {
   description: string | null
   mode: string | null
 
-  // desde INTERNSHIP
-  duration_estimated: string | null      
-  internship_duration: any | null        
-  remuneration: number | null            
+  duration_estimated: string | null
+  internship_duration: any | null
+  remuneration: number | null
 
   requirements: string | null
   contact_info: string | null
 
-  // Estado actual (OPEN/CLOSED) + publicación (ACTIVE/INACTIVE)
   status: string | null
   lifecycle_status: string | null
 
@@ -31,13 +29,12 @@ type OpportunityDetail = {
 
 function formatIntervalLike(v: any): string {
   if (v == null) return ""
-  // Supabase/Postgres interval suele llegar como string; si llega objeto, lo hacemos string.
   const s = String(v).trim()
-  if (!s) return ""
-  return s
+  return s || ""
 }
 
 export default function OpportunityDetailPage() {
+  const router = useRouter()
   const params = useParams<{ id: string }>()
   const id = params?.id
 
@@ -52,12 +49,17 @@ export default function OpportunityDetailPage() {
       if (!id) return
       setLoading(true)
       try {
-        const res = await fetch(`/api/opportunities/${id}`, { cache: "no-store" })
+        const res = await fetch(`/api/opportunities/${id}`, {
+          cache: "no-store",
+          credentials: "include",
+        })
+
         if (!res.ok) {
           setData(null)
           return
         }
-        const json = await res.json()
+
+        const json = (await res.json()) as OpportunityDetail
         setData(json)
       } catch (e) {
         console.error("Error loading opportunity detail:", e)
@@ -75,10 +77,19 @@ export default function OpportunityDetailPage() {
       if (!id) return
       setInterestLoading(true)
       try {
-        const res = await fetch(`/api/interest/status?opportunityId=${id}`, { cache: "no-store" })
+        const res = await fetch(`/api/interest/status?opportunityId=${id}`, {
+          cache: "no-store",
+          credentials: "include",
+        })
+
+        if (res.status === 401) {
+          setInterested(false)
+          return
+        }
+
         if (res.ok) {
           const json = await res.json()
-          setInterested(!!json.interested)
+          setInterested(!!json?.interested)
         } else {
           setInterested(false)
         }
@@ -105,6 +116,8 @@ export default function OpportunityDetailPage() {
       return
     }
 
+    if (interestLoading) return
+
     const ok = window.confirm(
       interested
         ? "¿Confirmas que deseas retirar tu manifestación de interés?"
@@ -112,23 +125,36 @@ export default function OpportunityDetailPage() {
     )
     if (!ok) return
 
-    const res = await fetch("/api/interest", {
-      method: interested ? "DELETE" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opportunityId: data.id }),
-      cache: "no-store",
-    })
+    setInterestLoading(true)
+    try {
+      const res = await fetch("/api/interest", {
+        method: interested ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ opportunityId: data.id }),
+        cache: "no-store",
+        credentials: "include",
+      })
 
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}))
-      if (res.status === 401) alert("Debes iniciar sesión.")
-      else if (j?.error === "DUPLICATE") alert("Ya manifestaste interés.")
-      else if (j?.error === "INACTIVE") alert("Publicación no activa.")
-      else alert("No se pudo procesar la acción.")
-      return
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        if (res.status === 401) {
+          alert("Debes iniciar sesión.")
+          router.push("/login")
+        } else if (j?.error === "DUPLICATE") alert("Ya manifestaste interés.")
+        else if (j?.error === "INACTIVE_OR_CLOSED") alert("La publicación no está activa o está cerrada.")
+        else if (j?.error === "INACTIVE") alert("Publicación no activa.")
+        else if (j?.error === "NOT_ALLOWED") alert("No tienes permisos para manifestar interés en esta publicación.")
+        else alert("No se pudo procesar la acción.")
+        return
+      }
+
+      setInterested((p) => !p)
+    } catch (e) {
+      console.error("Error toggling interest:", e)
+      alert("Error de red. Por favor intenta de nuevo.")
+    } finally {
+      setInterestLoading(false)
     }
-
-    setInterested((p) => !p)
   }
 
   if (loading) {
@@ -144,10 +170,7 @@ export default function OpportunityDetailPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="rounded-lg border p-6 space-y-4">
           <p className="font-medium">No se encontró la oportunidad.</p>
-          <Link
-            href="/dashboard/student"
-            className="inline-flex items-center gap-2 underline"
-          >
+          <Link href="/dashboard/student" className="inline-flex items-center gap-2 underline">
             <ArrowLeft className="h-4 w-4" />
             Volver al listado
           </Link>
@@ -161,40 +184,24 @@ export default function OpportunityDetailPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <Link
-          href="/dashboard/student"
-          className="inline-flex items-center gap-2 underline"
-        >
+        <Link href="/dashboard/student" className="inline-flex items-center gap-2 underline">
           <ArrowLeft className="h-4 w-4" />
           Volver
         </Link>
 
         <div className="flex items-center gap-2">
-          {/* BOOKMARK = INTERÉS */}
-          {interestLoading ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled
-              className="text-muted-foreground opacity-60"
-              type="button"
-            >
-              <Bookmark className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleInterest}
-              disabled={!canInteract}
-              className={interested ? "text-accent" : "text-muted-foreground"}
-              type="button"
-              title={interested ? "Retirar interés" : "Manifestar interés"}
-            >
-              <Bookmark className={`h-4 w-4 ${interested ? "fill-current" : ""}`} />
-              <span className="sr-only">{interested ? "Retirar interés" : "Manifestar interés"}</span>
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleInterest}
+            disabled={!canInteract || interestLoading}
+            className={interested ? "text-accent" : "text-muted-foreground"}
+            type="button"
+            title={interested ? "Retirar interés" : "Manifestar interés"}
+          >
+            <Bookmark className={`h-4 w-4 ${interested ? "fill-current" : ""}`} />
+            <span className="sr-only">{interested ? "Retirar interés" : "Manifestar interés"}</span>
+          </Button>
 
           {data.flyerUrl ? (
             <a
@@ -219,7 +226,6 @@ export default function OpportunityDetailPage() {
           </p>
         </div>
 
-        {/* Top info cards */}
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-md border p-4">
             <p className="text-sm font-medium">Modalidad</p>
@@ -235,9 +241,7 @@ export default function OpportunityDetailPage() {
 
           <div className="rounded-md border p-4">
             <p className="text-sm font-medium">Duración (interval)</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {intervalText ? intervalText : "No especificada"}
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">{intervalText ? intervalText : "No especificada"}</p>
           </div>
 
           <div className="rounded-md border p-4">
@@ -250,9 +254,7 @@ export default function OpportunityDetailPage() {
 
         <div className="rounded-md border p-4">
           <p className="text-sm font-medium">Descripción</p>
-          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
-            {data.description ?? ""}
-          </p>
+          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{data.description ?? ""}</p>
         </div>
 
         <div className="rounded-md border p-4">
