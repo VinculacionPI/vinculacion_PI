@@ -145,7 +145,7 @@ export default function OpportunityDetailPage() {
         <div className="rounded-lg border p-6 space-y-4">
           <p className="font-medium">No se encontró la oportunidad.</p>
           <Link
-            href="/dashboard/student/opportunities"
+            href="/dashboard/student"
             className="inline-flex items-center gap-2 underline"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -162,7 +162,7 @@ export default function OpportunityDetailPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex items-center justify-between gap-4">
         <Link
-          href="/dashboard/student/opportunities"
+          href="/dashboard/student"
           className="inline-flex items-center gap-2 underline"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     //  REGLA STUDENT: solo TFG + ACTIVE + OPEN
       if (norm(userRole) === "STUDENT") {
         query = query
-          .eq("type", "TFG")
+          .in("type", ["TFG", "INTERNSHIP"])
           .eq("lifecycle_status", "ACTIVE")
           .eq("status", "OPEN")
           .eq("approval_status", "APPROVED")
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
     const mapped = rows.map((row: any) => ({
       id: row.id,
       title: row.title,
-      company: row.COMPANY?.name ?? "Empresa",
+      company: row.COMPANY?.name ?? "Company",
       location: row.mode ?? "",
       type: row.type, // ahora sí: TFG / INTERNSHIP / JOB
       description: row.description ?? "",

@@ -24,7 +24,7 @@ async function getOpportunity(id: string) {
       title: data.title,
       description: data.description,
       type: data.type === 'TFG' ? 'graduation-project' : 
-            data.type === 'PASANTIA' ? 'internship' : 'job',
+            data.type === 'INTERNSHIP' ? 'internship' : 'job',
       location: data.mode || '',
       salary: '',
       requirements: data.requirements?.split('\n').filter(Boolean) || [''],
