@@ -9,40 +9,77 @@ export async function POST(req: NextRequest) {
   const password = String(body?.password ?? "").trim()
 
   if (!email || !password) {
-    return NextResponse.json({ message: "Email y contraseña requeridos" }, { status: 400 })
+    return NextResponse.json(
+      { message: "Email y contraseña requeridos" },
+      { status: 400 }
+    )
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
 
-  if (error || !data.session) {
+  //  LOGIN FALLÓ
+  if (error || !data?.session) {
+    //  LOG CLAVE PARA DEBUG (sale en la terminal)
+    console.error("LOGIN ERROR SUPABASE:", {
+      email,
+      code: error?.code,
+      message: error?.message,
+      status: error?.status,
+    })
+
+    // Mensaje más humano según el error real
+    let message = "Credenciales inválidas"
+
+    if (error?.message?.toLowerCase().includes("email not confirmed")) {
+      message = "Debes confirmar tu correo antes de iniciar sesión"
+    }
+
+    if (error?.message?.toLowerCase().includes("invalid login credentials")) {
+      message = "Correo o contraseña incorrectos"
+    }
+
+    if (error?.message?.toLowerCase().includes("too many")) {
+      message = "Demasiados intentos. Intenta más tarde"
+    }
+
     return NextResponse.json(
-      { message: "Credenciales inválidas", detail: error?.message },
+      {
+        message,
+        detail: error?.message,
+        code: error?.code,
+      },
       { status: 401 }
     )
   }
 
-  // Obtener rol del user_metadata
-  const role = data.user.user_metadata?.role || 'student'
+  // LOGIN OK
+  const role = data.user.user_metadata?.role || "student"
   const company_id = data.user.user_metadata?.company_id || null
 
-  console.log('Login exitoso:', { email, role, company_id })
+  console.log("Login exitoso:", {
+    email: data.user.email,
+    role,
+    company_id,
+  })
 
-  // Response final
   const out = NextResponse.json(
-    { 
-      ok: true, 
-      user: { 
-        id: data.user.id, 
+    {
+      ok: true,
+      user: {
+        id: data.user.id,
         email: data.user.email,
         role,
-        company_id
+        company_id,
       },
-      role // ← IMPORTANTE: login-form.tsx usa esto para redireccionar
+      role, 
     },
     { status: 200 }
   )
 
-  // Copiar Set-Cookie del "res" (donde supabase escribió cookies) al response final
+  // Copiar cookies de Supabase 
   const setCookie = res.headers.get("set-cookie")
   if (setCookie) out.headers.set("set-cookie", setCookie)
 

@@ -9,7 +9,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    if (!id) return NextResponse.json({ message: "Missing id" }, { status: 400 })
+    const oppId = (id ?? "").trim()
+    if (!oppId) return NextResponse.json({ message: "Missing id" }, { status: 400 })
 
     const supabase = await createServerSupabase()
 
@@ -47,17 +48,29 @@ export async function GET(
         created_at,
         COMPANY:company_id ( name ),
         flyers ( url, formato ),
-        internship:INTERNSHIP!INTERNSHIP_opportunity_fkey ( schedule, duration, remuneration )
+
+        internship:INTERNSHIP!INTERNSHIP_opportunity_fkey ( schedule, duration, remuneration ),
+        tfg:TFG!TFG_opportunity_fkey ( schedule, duration, remuneration ),
+        job:JOB!JOB_opportunity_fkey ( contract_type, salary_min, salary_max, benefits, estimated_start_date )
       `
       )
-      .eq("id", id)
+      .eq("id", oppId)
 
-    //  STUDENT: solo TFG ACTIVE OPEN
+    //  Reglas por rol (detalle)
     if (norm(userRole) === "STUDENT") {
-      query = query.eq("type", "TFG").eq("lifecycle_status", "ACTIVE").eq("status", "OPEN")
-      // recomendado:
-      // query = query.eq("approval_status", "APPROVED")
+      query = query
+        .in("type", ["TFG", "INTERNSHIP"])
+        .eq("lifecycle_status", "ACTIVE")
+        .eq("status", "OPEN")
+        .eq("approval_status", "APPROVED")
+    } else if (norm(userRole) === "GRADUATE") {
+      query = query
+        .eq("type", "JOB")
+        .eq("lifecycle_status", "ACTIVE")
+        .eq("status", "OPEN")
+        .eq("approval_status", "APPROVED")
     }
+    // otros roles: no filtramos aquí (o podrías bloquear si querés)
 
     const { data, error } = await query.maybeSingle()
     if (error) throw error
@@ -71,29 +84,55 @@ export async function GET(
       ? (data as any).internship[0]
       : (data as any).internship
 
+    const tfgObj = Array.isArray((data as any).tfg)
+      ? (data as any).tfg[0]
+      : (data as any).tfg
+
+    const jobObj = Array.isArray((data as any).job)
+      ? (data as any).job[0]
+      : (data as any).job
+
     const flyerUrl = (data as any).flyers?.[0]?.url ?? null
+
+    // Para student: duración/remuneración pueden venir de internship o tfg
+    const duration_estimated = internshipObj?.schedule ?? tfgObj?.schedule ?? ""
+    const duration_interval = internshipObj?.duration ?? tfgObj?.duration ?? null
+    const remuneration = internshipObj?.remuneration ?? tfgObj?.remuneration ?? null
 
     return NextResponse.json({
       id: data.id,
       title: data.title ?? "",
+      type: (data as any).type ?? null,
+
       company: companyObj?.name ?? "Empresa",
       description: data.description ?? "",
       mode: data.mode ?? "",
 
-      // DURACIÓN "humana" (schedule)
-      duration_estimated: internshipObj?.schedule ?? "",
-
-      // ✅ nuevos: interval + pago
-      internship_duration: internshipObj?.duration ?? null,
-      remuneration: internshipObj?.remuneration ?? null,
-
       requirements: data.requirements ?? "",
       contact_info: data.contact_info ?? "",
+
       status: data.status ?? "",
       lifecycle_status: data.lifecycle_status ?? "",
       approval_status: (data as any).approval_status ?? "",
       created_at: data.created_at,
+
       flyerUrl,
+
+      //  campos TFG/INTERNSHIP (student)
+      duration_estimated,
+      internship_duration: duration_interval,
+      remuneration,
+
+      //  campos JOB (graduate)
+      job: jobObj
+        ? {
+            contract_type: jobObj.contract_type ?? null,
+            salary_min: jobObj.salary_min ?? null,
+            salary_max: jobObj.salary_max ?? null,
+            benefits: jobObj.benefits ?? null,
+            estimated_start_date: jobObj.estimated_start_date ?? null,
+          }
+        : null,
     })
   } catch (e) {
     console.error("API opportunities/[id] error:", e)

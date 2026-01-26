@@ -61,7 +61,7 @@ export function LoginForm() {
       } else {
         const roleRoutes: Record<string, string> = {
           student: "/dashboard/student",
-          graduate: "/dashboard/graduate",
+          graduate: "/dashboard/student",
           admin: "/dashboard/admin",
         }
 

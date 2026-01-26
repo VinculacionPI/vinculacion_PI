@@ -147,11 +147,13 @@ export function OpportunityApprovalsTable() {
     }
   }
 
-  const typeLabels: Record<string, string> = {
-    internship: "Práctica",
-    "graduation-project": "TFG",
-    job: "Empleo",
-  }
+    const typeLabels: Record<string, string> = {
+      internship: "Práctica",
+      TFG: "graduation-project",
+      job: "Empleo"
+    }
+
+
 
   const rows = useMemo(() => {
     return opportunities.map((o) => {

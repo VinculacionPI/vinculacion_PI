@@ -6,34 +6,46 @@ import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Download, Bookmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
+type JobDetail = {
+  contract_type: string | null
+  salary_min: number | null
+  salary_max: number | null
+  benefits: string | null
+  estimated_start_date?: string | null
+}
+
 type OpportunityDetail = {
   id: string
   title: string
   description: string | null
   mode: string | null
 
-  duration_estimated: string | null
-  internship_duration: any | null
-  remuneration: number | null
-
   requirements: string | null
   contact_info: string | null
 
   status: string | null
   lifecycle_status: string | null
+  approval_status?: string | null
 
   created_at: string
   company: string | null
   flyerUrl: string | null
+
+  // ✅ importante para decidir layout
+  type: string | null // "JOB" / "TFG" / "INTERNSHIP"
+
+  // ✅ campos extra JOB (si tu API los manda)
+  job?: JobDetail | null
+
+  // (por si tu API manda planos en lugar de job{})
+  contract_type?: string | null
+  salary_min?: number | null
+  salary_max?: number | null
+  benefits?: string | null
+  estimated_start_date?: string | null
 }
 
-function formatIntervalLike(v: any): string {
-  if (v == null) return ""
-  const s = String(v).trim()
-  return s || ""
-}
-
-export default function OpportunityDetailPage() {
+export default function GraduateOpportunityDetailPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
   const id = params?.id
@@ -157,6 +169,13 @@ export default function OpportunityDetailPage() {
     }
   }
 
+  const job = data?.job ?? null
+  const contractType = job?.contract_type ?? data?.contract_type ?? null
+  const salaryMin = job?.salary_min ?? data?.salary_min ?? null
+  const salaryMax = job?.salary_max ?? data?.salary_max ?? null
+  const benefits = job?.benefits ?? data?.benefits ?? null
+  const startDate = job?.estimated_start_date ?? data?.estimated_start_date ?? null
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -170,7 +189,7 @@ export default function OpportunityDetailPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="rounded-lg border p-6 space-y-4">
           <p className="font-medium">No se encontró la oportunidad.</p>
-          <Link href="/dashboard/student" className="inline-flex items-center gap-2 underline">
+          <Link href="/dashboard/graduate" className="inline-flex items-center gap-2 underline">
             <ArrowLeft className="h-4 w-4" />
             Volver al listado
           </Link>
@@ -179,12 +198,10 @@ export default function OpportunityDetailPage() {
     )
   }
 
-  const intervalText = formatIntervalLike(data.internship_duration)
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <Link href="/dashboard/student" className="inline-flex items-center gap-2 underline">
+        <Link href="/dashboard/graduate" className="inline-flex items-center gap-2 underline">
           <ArrowLeft className="h-4 w-4" />
           Volver
         </Link>
@@ -233,22 +250,22 @@ export default function OpportunityDetailPage() {
           </div>
 
           <div className="rounded-md border p-4">
-            <p className="text-sm font-medium">Duración estimada</p>
+            <p className="text-sm font-medium">Tipo de contrato</p>
+            <p className="text-sm text-muted-foreground mt-1">{contractType ?? "No especificado"}</p>
+          </div>
+
+          <div className="rounded-md border p-4">
+            <p className="text-sm font-medium">Salario</p>
             <p className="text-sm text-muted-foreground mt-1">
-              {data.duration_estimated ? data.duration_estimated : "No especificada"}
+              {salaryMin != null || salaryMax != null
+                ? `${salaryMin ?? "—"} - ${salaryMax ?? "—"}`
+                : "No especificado"}
             </p>
           </div>
 
           <div className="rounded-md border p-4">
-            <p className="text-sm font-medium">Duración (interval)</p>
-            <p className="text-sm text-muted-foreground mt-1">{intervalText ? intervalText : "No especificada"}</p>
-          </div>
-
-          <div className="rounded-md border p-4">
-            <p className="text-sm font-medium">Remuneración</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {data.remuneration != null ? String(data.remuneration) : "No especificada"}
-            </p>
+            <p className="text-sm font-medium">Fecha estimada de inicio</p>
+            <p className="text-sm text-muted-foreground mt-1">{startDate ?? "No especificada"}</p>
           </div>
         </div>
 
@@ -261,6 +278,13 @@ export default function OpportunityDetailPage() {
           <p className="text-sm font-medium">Requisitos</p>
           <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
             {data.requirements ?? "No especificados"}
+          </p>
+        </div>
+
+        <div className="rounded-md border p-4">
+          <p className="text-sm font-medium">Beneficios</p>
+          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
+            {benefits ?? "No especificados"}
           </p>
         </div>
 

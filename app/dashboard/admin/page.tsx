@@ -1,12 +1,23 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { StatsCard } from "@/components/shared/stats-card"
 import { LoadingState } from "@/components/shared/loading-state"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Building2, Briefcase, Users, CheckCircle, Clock } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Building2, Briefcase, Users, CheckCircle, Clock, User, X, GraduationCap } from "lucide-react"
 import { CompanyApprovalsTable } from "@/components/admin/company-approvals-table"
 import { OpportunityApprovalsTable } from "@/components/admin/opportunity-approvals-table"
+import { GraduatesApprovalsTable } from "@/components/admin/graduates-approvals-table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type AdminStats = {
   totalCompanies: number
@@ -15,11 +26,27 @@ type AdminStats = {
   pendingOpportunities: number
   totalUsers: number
   activeOpportunities: number
+
+  // 👇 lo agregamos después cuando hagamos la API real
+  // pendingGraduations?: number
 }
 
 export default function AdminDashboardPage() {
+  const router = useRouter()
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      router.push("/login")
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error)
+    }
+  }
 
   useEffect(() => {
     const fetchAdminStats = async () => {
@@ -68,11 +95,33 @@ export default function AdminDashboardPage() {
     )
   }
 
+  // placeholder por ahora (lo conectamos cuando hagamos /api/admin/graduation-requests/pending)
+  const pendingGraduations: number | null = null
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Panel de Administración</h1>
-        <p className="text-muted-foreground">Gestiona aprobaciones y supervisa la plataforma</p>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Panel de Administración</h1>
+          <p className="text-muted-foreground">Gestiona aprobaciones y supervisa la plataforma</p>
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <User className="h-4 w-4" />
+              Admin
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+              <X className="h-4 w-4 mr-2" />
+              Cerrar Sesión
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
@@ -106,6 +155,14 @@ export default function AdminDashboardPage() {
           icon={Clock}
           description="Requieren revisión"
         />
+
+        {/* 👇 opcional: tarjeta de graduación (por ahora “—”) */}
+        <StatsCard
+          title="Graduaciones Pendientes"
+          value={pendingGraduations ?? "—"}
+          icon={GraduationCap}
+          description="Solicitudes por revisar"
+        />
       </div>
 
       <Tabs defaultValue="companies" className="space-y-6">
@@ -114,9 +171,16 @@ export default function AdminDashboardPage() {
             <Building2 className="h-4 w-4 mr-2" />
             Empresas Pendientes ({stats.pendingCompanies})
           </TabsTrigger>
+
           <TabsTrigger value="opportunities">
             <Briefcase className="h-4 w-4 mr-2" />
             Oportunidades Pendientes ({stats.pendingOpportunities})
+          </TabsTrigger>
+
+          {/* ✅ NUEVO TAB */}
+          <TabsTrigger value="graduates">
+            <GraduationCap className="h-4 w-4 mr-2" />
+            Graduados Pendientes ({pendingGraduations ?? "—"})
           </TabsTrigger>
         </TabsList>
 
@@ -126,6 +190,11 @@ export default function AdminDashboardPage() {
 
         <TabsContent value="opportunities">
           <OpportunityApprovalsTable />
+        </TabsContent>
+
+        {/* ✅ NUEVA SECCIÓN */}
+        <TabsContent value="graduates">
+          <GraduatesApprovalsTable />
         </TabsContent>
       </Tabs>
     </div>

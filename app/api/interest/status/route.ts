@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createRouteSupabase } from "@/lib/supabase/route"
 
-function isDev() {
-  return process.env.NODE_ENV !== "production"
-}
-
 function copySetCookies(from: Headers, to: Headers) {
   const anyFrom = from as any
   if (typeof anyFrom.getSetCookie === "function") {
@@ -26,19 +22,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const opportunityId = String(req.nextUrl.searchParams.get("opportunityId") ?? "").trim()
-    if (!opportunityId) return respond({ interested: false }, { status: 200 })
-
-    // user real o fallback DEV
     const { data: auth, error: authErr } = await supabase.auth.getUser()
-    if (authErr) console.warn("auth.getUser warning:", authErr)
-
-    let userId: string | null = auth?.user?.id ?? null
-    if (!userId && isDev()) userId = process.env.DEV_USER_ID ?? null
-
-    if (!userId) {
-      return respond({ message: "No autenticado" }, { status: 401 })
+    if (authErr || !auth?.user?.id) {
+      return respond({ error: "UNAUTHORIZED" }, { status: 401 })
     }
+    const userId = auth.user.id
+
+    const opportunityId = String(req.nextUrl.searchParams.get("opportunityId") ?? "").trim()
+    if (!opportunityId) return respond({ error: "MISSING_OPPORTUNITY_ID" }, { status: 400 })
 
     const { data, error } = await supabase
       .from("INTEREST")
@@ -49,12 +40,12 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error("interest/status error:", error)
-      return respond({ interested: false }, { status: 200 })
+      return respond({ error: "QUERY_FAILED" }, { status: 500 })
     }
 
     return respond({ interested: !!data }, { status: 200 })
   } catch (e) {
     console.error("interest/status crash:", e)
-    return respond({ interested: false }, { status: 200 })
+    return respond({ error: "INTERNAL" }, { status: 500 })
   }
 }

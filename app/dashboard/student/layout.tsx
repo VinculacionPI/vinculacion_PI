@@ -21,12 +21,12 @@ export default async function StudentDashboardLayout({ children }: { children: R
     .single()
 
   // Verificar que el usuario tenga el rol correcto
-  if (userData?.role !== "student") {
+  if (userData?.role.toLowerCase() !== "student") {
     redirect(`/dashboard/${userData?.role.toLowerCase() || "student"}`)
   }
 
   const userName = userData?.name || userData?.email || "Estudiante"
-  const userRole = userData?.role || "student"
+  const userRole = userData?.role.toLowerCase() || "student"
 
   return (
     <div className="min-h-screen bg-background">
