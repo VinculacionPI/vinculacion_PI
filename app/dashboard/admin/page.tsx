@@ -6,9 +6,10 @@ import { StatsCard } from "@/components/shared/stats-card"
 import { LoadingState } from "@/components/shared/loading-state"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Building2, Briefcase, Users, CheckCircle, Clock, User, X } from "lucide-react"
+import { Building2, Briefcase, Users, CheckCircle, Clock, User, X, GraduationCap } from "lucide-react"
 import { CompanyApprovalsTable } from "@/components/admin/company-approvals-table"
 import { OpportunityApprovalsTable } from "@/components/admin/opportunity-approvals-table"
+import { GraduatesApprovalsTable } from "@/components/admin/graduates-approvals-table"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,9 @@ type AdminStats = {
   pendingOpportunities: number
   totalUsers: number
   activeOpportunities: number
+
+  // 👇 lo agregamos después cuando hagamos la API real
+  // pendingGraduations?: number
 }
 
 export default function AdminDashboardPage() {
@@ -38,7 +42,6 @@ export default function AdminDashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       })
-
       router.push("/login")
     } catch (error) {
       console.error("Error al cerrar sesión:", error)
@@ -91,6 +94,9 @@ export default function AdminDashboardPage() {
       </div>
     )
   }
+
+  // placeholder por ahora (lo conectamos cuando hagamos /api/admin/graduation-requests/pending)
+  const pendingGraduations: number | null = null
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -149,6 +155,14 @@ export default function AdminDashboardPage() {
           icon={Clock}
           description="Requieren revisión"
         />
+
+        {/* 👇 opcional: tarjeta de graduación (por ahora “—”) */}
+        <StatsCard
+          title="Graduaciones Pendientes"
+          value={pendingGraduations ?? "—"}
+          icon={GraduationCap}
+          description="Solicitudes por revisar"
+        />
       </div>
 
       <Tabs defaultValue="companies" className="space-y-6">
@@ -157,9 +171,16 @@ export default function AdminDashboardPage() {
             <Building2 className="h-4 w-4 mr-2" />
             Empresas Pendientes ({stats.pendingCompanies})
           </TabsTrigger>
+
           <TabsTrigger value="opportunities">
             <Briefcase className="h-4 w-4 mr-2" />
             Oportunidades Pendientes ({stats.pendingOpportunities})
+          </TabsTrigger>
+
+          {/* ✅ NUEVO TAB */}
+          <TabsTrigger value="graduates">
+            <GraduationCap className="h-4 w-4 mr-2" />
+            Graduados Pendientes ({pendingGraduations ?? "—"})
           </TabsTrigger>
         </TabsList>
 
@@ -169,6 +190,11 @@ export default function AdminDashboardPage() {
 
         <TabsContent value="opportunities">
           <OpportunityApprovalsTable />
+        </TabsContent>
+
+        {/* ✅ NUEVA SECCIÓN */}
+        <TabsContent value="graduates">
+          <GraduatesApprovalsTable />
         </TabsContent>
       </Tabs>
     </div>
