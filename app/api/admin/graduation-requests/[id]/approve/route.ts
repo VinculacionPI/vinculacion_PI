@@ -73,6 +73,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         major: approvedReq.major,
         final_gpa: approvedReq.final_gpa,
         role: "GRADUATE", // ojo: si tu sistema usa "graduate" en minúscula, cambia esto
+        status: "ACTIVE",
         updated_at: nowIso,
         role_updated_at: nowIso,
       })
