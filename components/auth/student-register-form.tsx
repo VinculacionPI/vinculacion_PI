@@ -186,7 +186,7 @@ export function StudentRegisterForm() {
             cedula: formData.cedula,
             semester: formData.semester
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`
+          emailRedirectTo: `${window.location.origin}/login`
         }
       })
 
@@ -593,7 +593,7 @@ export function StudentRegisterForm() {
                 <SelectTrigger className="h-11">
                   <SelectValue placeholder="Selecciona un semestre" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" sideOffset={5} className="bg-popover border border-border shadow-md">
                   {Array.from({ length: 10 }, (_, i) => (i + 1).toString()).map((sem) => (
                     <SelectItem key={sem} value={sem}>
                       Semestre {sem}

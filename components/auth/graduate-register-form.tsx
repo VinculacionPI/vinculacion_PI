@@ -76,7 +76,7 @@ export function GraduateRegisterForm() {
     if (!/^\d{7,10}$/.test(formData.carnet)) errs.carnet = "Carnet entre 7 y 10 dígitos"
 
     if (!/^[2-8]\d{7}$/.test(formData.phone)) errs.phone = "Teléfono inválido (8 dígitos)"
-    if (!formData.address.trim()) errs.address = "Dirección requerida"
+    if (!formData.address.trim() || formData.address.trim().length < 5) errs.address = "Dirección mínimo 5 caracteres"
 
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/
     if (!passwordRegex.test(formData.password)) errs.password = "Min 8 chars con mayús, minús y número"
@@ -129,7 +129,7 @@ export function GraduateRegisterForm() {
             cedula: formData.cedula,
             carnet: formData.carnet,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/login`,
         },
       })
 
