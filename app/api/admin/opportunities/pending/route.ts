@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server"
 import { createServerSupabase } from "@/lib/supabase/server"
 
-// En tu BD, OPPORTUNITY.type para TFG es "TFG" (no "graduation-project")
-const TFG_TYPE = "TFG"
-
 export async function GET() {
   const supabase = await createServerSupabase()
 
@@ -19,6 +16,8 @@ export async function GET() {
       approval_status,
       lifecycle_status,
       mode,
+      requirements,
+      contact_info,
       company_id,
       COMPANY:company_id (
         id,
@@ -26,9 +25,10 @@ export async function GET() {
       )
     `
     )
-    // En tu BD los estados son "Pendiente" / "Aprobado" / "Rechazado"
-    .eq("approval_status", "Pendiente")
-    .eq("type", TFG_TYPE)
+    // ✅ USAR EL ESTADO REAL DE LA BD
+    .eq("approval_status", "PENDING")
+    // opcional, pero lógico: solo activas
+    // .eq("lifecycle_status", "ACTIVE")
     .order("created_at", { ascending: true })
 
   if (error) {
@@ -38,23 +38,28 @@ export async function GET() {
       details: (error as any).details,
       hint: (error as any).hint,
     })
-    return NextResponse.json({ message: error.message }, { status: 500 })
+
+    return NextResponse.json(
+      { message: error.message },
+      { status: 500 }
+    )
   }
 
   const mapped =
     (data ?? []).map((o: any) => ({
       id: o.id,
       title: o.title,
-      company: o.COMPANY?.name ?? "No especificada",
-      companyId: o.company_id,
-      location: o.mode ?? "—",
-      type: o.type,
-      status: "pending",
+      type: o.type, // TFG | JOB | INTERNSHIP | EMPLEO | etc
       description: o.description ?? "",
-      postedAt: o.created_at,
-      requirements: [],
       created_at: o.created_at,
-    })) ?? []
+      approval_status: o.approval_status, // PENDING
+      lifecycle_status: o.lifecycle_status,
+      mode: o.mode,
+      requirements: o.requirements ?? "",
+      contact_info: o.contact_info ?? "",
+      company_id: o.company_id,
+      company_name: o.COMPANY?.name ?? "No especificada",
+    }))
 
-  return NextResponse.json(mapped)
+  return NextResponse.json(mapped, { status: 200 })
 }

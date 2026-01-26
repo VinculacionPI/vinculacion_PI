@@ -7,7 +7,6 @@ function isDev() {
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const supabase = await createServerSupabase()
-
   const { id } = await ctx.params
 
   const { data: auth } = await supabase.auth.getUser()
@@ -21,10 +20,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const { data, error } = await supabase
     .from("OPPORTUNITY")
     .update({
-      approval_status: "Aprobado",
-      lifecycle_status: "Activo",
-      // si no existe esa columna, quitá esta línea:
-      // rejection_reason: null,
+      approval_status: "APPROVED",
+      lifecycle_status: "ACTIVE",
+      status: "OPEN",
     })
     .eq("id", id)
     .select("id,title,approval_status,company_id,created_at,lifecycle_status")
@@ -37,13 +35,15 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     )
   }
 
+  
   await supabase.from("AUDIT_LOG").insert({
     action: "APPROVE",
     entity: "OPPORTUNITY",
     entity_id: data.id,
     company_id: data.company_id,
     user_id: userId,
-    details: { approval_status: data.approval_status, title: data.title },
+    details: JSON.stringify({ approval_status: data.approval_status, title: data.title }),
+    opportunity_id: data.id,
   })
 
   return NextResponse.json({ message: "Oportunidad aprobada", opportunity: data }, { status: 200 })
