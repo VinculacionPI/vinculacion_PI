@@ -7,30 +7,86 @@ import { notFound } from "next/navigation"
 
 async function getOpportunity(id: string) {
   try {
-    const { data, error } = await supabase
-      .from('OPPORTUNITY')
-      .select('*')
-      .eq('id', id)
+    const { data: opportunity, error } = await supabase
+      .from("OPPORTUNITY")
+      .select("*")
+      .eq("id", id)
       .single()
 
-    if (error || !data) {
-      console.error('Error obteniendo oportunidad:', error)
+    if (error || !opportunity) {
+      console.error("Error obteniendo OPPORTUNITY:", error)
       return null
     }
 
-    // Transformar al formato del formulario
+    const mappedType =
+      opportunity.type === "INTERNSHIP"
+        ? "internship"
+        : opportunity.type === "TFG"
+        ? "graduation-project"
+        : "job"
+
+    const baseData = {
+      id: opportunity.id,
+      title: opportunity.title ?? "",
+      description: opportunity.description ?? "",
+      type: mappedType,
+      area: opportunity.area ?? "",
+      contactInfo: opportunity.contact_info ?? "",
+      requirements: opportunity.requirements
+        ? opportunity.requirements.split("\n").filter(Boolean)
+        : [""],
+      lifecycle_status: opportunity.lifecycle_status ?? "",
+    }
+
+    if (mappedType === "internship") {
+      const { data } = await supabase
+        .from("INTERNSHIP")
+        .select("*")
+        .eq("opportunity", id)
+        .single()
+
+      return {
+        ...baseData,
+        duration: data?.duration ?? "",
+        schedule: data?.schedule ?? "",
+        salary: data?.remuneration?.toString() ?? "",
+      }
+    }
+
+    if (mappedType === "graduation-project") {
+      const { data } = await supabase
+        .from("TFG")
+        .select("*")
+        .eq("opportunity", id)
+        .single()
+
+      return {
+        ...baseData,
+        duration: data?.duration ?? "",
+        schedule: data?.schedule ?? "",
+        salary: data?.remuneration?.toString() ?? "",
+      }
+    }
+
+    // JOB
+    const { data } = await supabase
+      .from("JOB")
+      .select("*")
+      .eq("opportunity", id)
+      .single()
+
     return {
-      id: data.id,
-      title: data.title,
-      description: data.description,
-      type: data.type === 'TFG' ? 'graduation-project' : 
-            data.type === 'PASANTIA' ? 'internship' : 'job',
-      location: data.mode || '',
-      salary: '',
-      requirements: data.requirements?.split('\n').filter(Boolean) || [''],
+      ...baseData,
+      contractType: data?.contract_type ?? "",
+      salary:
+        data?.salary_min && data?.salary_max
+          ? `${data.salary_min} - ${data.salary_max}`
+          : "",
+      benefits: data?.benefits ?? "",
+      startDate: data?.estimated_start_date ?? "",
     }
   } catch (err) {
-    console.error('Error:', err)
+    console.error("Error general getOpportunity:", err)
     return null
   }
 }

@@ -15,6 +15,10 @@ export default async function CompanyDashboardLayout({ children }: { children: R
 
   const company = JSON.parse(session.value)
 
+  if (company.role !== "company") {
+    redirect("/not-authorized")
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader

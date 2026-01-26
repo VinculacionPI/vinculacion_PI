@@ -105,31 +105,7 @@ export function CompanyRegisterForm() {
       return
     }
 
-    // Correo de empresa
-    const { data: existingCompanyEmail } = await supabase
-    .from("COMPANIES")
-    .select("id")
-    .eq("email", formData.companyEmail.toLowerCase())
-    .maybeSingle()
-
-    if (existingCompanyEmail) {
-    throw new Error("Este correo empresarial ya está registrado")
-    }
-
-    // Nombre de empresa
-    const { data: existingCompanyName } = await supabase
-    .from("COMPANIES")
-    .select("id")
-    .ilike("name", formData.companyName.trim())
-    .maybeSingle()
-
-    if (existingCompanyName) {
-    throw new Error("Esta empresa ya está registrada")
-    }
-
-
     try {
-
       let logoPath: string | null = null;
 
       if (formData.logoFile) {
@@ -151,47 +127,86 @@ export function CompanyRegisterForm() {
       }
 
       // Crear usuario en Supabase Auth
-      const { data: result, error: rpcError } = await supabase.rpc(
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.companyEmail.toLowerCase(),
+        password: formData.password,
+        options: {
+          data: {
+            role: "company"
+          }
+        }
+      });
+
+      if (authError) {
+        throw authError;
+      }
+
+      if (!authData.user) {
+        throw new Error("No se pudo crear el usuario en Auth");
+      }
+
+      const userId = authData.user.id;
+
+      const rpcResponse = await supabase.rpc(
         "register_company",
         {
-            p_name: formData.companyName.trim(),
-            p_email: formData.companyEmail.toLowerCase(),
-            p_sector: formData.sector.trim(),
-            p_description: formData.description.trim(),
-            p_owner_email: formData.contactPerson.trim(),
-            p_password_hash: formData.password,
-            p_logo_path: logoPath
+          p_id: userId,
+          p_name: formData.companyName.trim(),
+          p_email: formData.companyEmail.toLowerCase(),
+          p_sector: formData.sector.trim(),
+          p_description: formData.description.trim(),
+          p_owner_email: formData.contactPerson.trim(),
+          p_logo_path: logoPath
         }
-        )
+      );
 
-        switch (result) {
+      const { data: result, error: rpcError } = rpcResponse;
+
+      if (rpcError) {
+        throw new Error(rpcError.message || "Error al procesar la solicitud");
+      }
+
+      // El resultado viene en result.result por la estructura de la RPC
+      let resultCode = result;
+      
+      if (typeof result === 'object' && result !== null && 'result' in result) {
+        resultCode = result.result;
+      }
+
+      if (typeof resultCode !== 'number') {
+        throw new Error("Respuesta inesperada del servidor");
+      }
+
+      switch (resultCode) {
         case 1:
-
-        await fetch("/api/email", {
+          await fetch("/api/email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-            companyName: formData.companyName,
-            companyEmail: formData.companyEmail
+              companyName: formData.companyName,
+              companyEmail: formData.companyEmail
             })
-        })
-            setSuccess(true)
-            setTimeout(() => {
+          }).catch(err => console.error("Error enviando email:", err));
+
+          setSuccess(true)
+          setTimeout(() => {
             router.push("/login?registered=company")
-            }, 3000)
-            break
+          }, 3000)
+          break
 
         case 2:
-            throw new Error(
+          throw new Error(
             "Su empresa fue rechazada recientemente. Intente nuevamente en 30 días."
-            )
+          )
 
         case 3:
-            throw new Error("Esta empresa ya se encuentra registrada")
+          throw new Error("Esta empresa ya se encuentra registrada")
 
         default:
-            throw new Error("Respuesta inesperada del servidor")
-        }
+          console.error("Código de resultado no manejado:", resultCode);
+          throw new Error(`Respuesta inesperada del servidor: ${resultCode}`)
+      }
+
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado")
     } finally {

@@ -63,7 +63,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ opportunity_id: data });
+    return NextResponse.json({
+      success: true,
+      opportunity_id: data,
+      action: i_id ? "updated" : "created",
+    });
+
   } catch (err: any) {
     console.error("Server Error:", err);
     return NextResponse.json({ error: err.message ?? "Error desconocido" }, { status: 500 });

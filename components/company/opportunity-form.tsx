@@ -12,7 +12,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Loader2, Plus, X, FileText } from "lucide-react"
 import { UploadFlyer } from "@/components/company/upload-flyer"
 import { generarFlyer } from "@/lib/services/api"
-import { supabase } from "@/lib/supabase"
 import type { OpportunityType } from "@/lib/types"
 import { getCurrentCompanyId } from '@/lib/auth/get-current-user'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -23,11 +22,30 @@ interface OpportunityFormProps {
     title: string
     description: string
     type: string
-    location: string
+    area?: string
+    mode?: string
     salary?: string
+    duration?: string
+    schedule?: string
+    contractType?: string
+    benefits?: string
+    startDate?: string
+    contactInfo?: string
     requirements?: string[]
   }
   isEdit?: boolean
+}
+
+function parseSalaryRange(value: string): { min: number; max: number } {
+  const parts = value
+    .split("-")
+    .map(v => parseFloat(v.replace(/[^\d.]/g, "")))
+    .filter(v => !isNaN(v));
+
+  return {
+    min: parts[0] ?? 0,
+    max: parts[1] ?? parts[0] ?? 0,
+  };
 }
 
 export function OpportunityForm({ initialData, isEdit = false }: OpportunityFormProps) {
@@ -40,7 +58,6 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
     title: initialData?.title || "",
     description: initialData?.description || "",
     type: (initialData?.type as OpportunityType) || "job",
-    location: initialData?.location || "",
     mode: "virtual",
     duration: "6 meses",
     schedule: "",
@@ -48,7 +65,7 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
     salary: initialData?.salary || "",
     benefits: "",
     startDate: "",
-    area: "",
+    area: initialData?.area || "",
     contactInfo: "",
     requirements: initialData?.requirements || [""],
   })
@@ -68,7 +85,7 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
 
       // Payload general
       const payload = {
-        i_id: null,
+        i_id: isEdit ? initialData?.id ?? null : null, 
         i_title: formData.title,
         i_type: tipoMapeado,
         i_description: formData.description,
@@ -116,22 +133,26 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
       } 
       else {
         // JOB
+        const { min, max } = parseSalaryRange(formData.salary);
+
         const jobPayload = {
-          j_id: null,
+          j_id: isEdit ? initialData?.id ?? null : null,
           j_title: formData.title,
           j_type: 'JOB',
           j_description: formData.description,
           j_mode: formData.mode,
+          j_area: formData.area,
           j_requirements: formData.requirements.filter(r => r.trim()).join('\n') || 'No especificados',
           j_contact_info: formData.contactInfo,
           j_contract_type: formData.contractType,
-          j_salary_min: formData.salary ? parseFloat(formData.salary.replace(/[^\d.-]/g, '')) : 0,
-          j_salary_max: formData.salary ? parseFloat(formData.salary.replace(/[^\d.-]/g, '')) : 0,
+          j_salary_min: min,
+          j_salary_max: max,
           j_benefits: formData.benefits,
           j_estimated_start_date: formData.startDate,
           j_company_id: empresaId,
           j_flyer_url: null,
-        }
+        };
+
 
         const response = await fetch("/api/opportunities/job", {
           method: "POST",
@@ -147,8 +168,14 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
         data = await response.json()
       }
 
+      if (isEdit) {
+        router.push("/dashboard/company")
+        return
+      }
+
       setCreatedOpportunityId(data.opportunity_id)
       setShowFlyerStep(true)
+
     } catch (err: any) {
       console.error("Error completo:", err)
       setError(err?.message || "Ocurrió un error")
@@ -230,6 +257,29 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
     newRequirements[index] = value
     setFormData({ ...formData, requirements: newRequirements })
   }
+
+  useEffect(() => {
+      if (isEdit && initialData) {
+        setFormData((prev) => ({
+          ...prev,
+          title: initialData.title ?? "",
+          description: initialData.description ?? "",
+          type: initialData.type as OpportunityType,
+          area: initialData.area ?? "",
+          mode: initialData.mode ?? "virtual",
+          salary: initialData.salary ?? "",
+          duration: initialData.duration ?? "",
+          schedule: initialData.schedule ?? "",
+          contractType: initialData.contractType ?? "",
+          benefits: initialData.benefits ?? "",
+          startDate: initialData.startDate ?? "",
+          contactInfo: initialData.contactInfo ?? "",
+          requirements: initialData.requirements?.length
+            ? initialData.requirements
+            : [""],
+        }))
+      }
+    }, [isEdit, initialData])
 
   // Mostrar paso de flyer después de crear
   if (showFlyerStep && createdOpportunityId) {
@@ -334,7 +384,9 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
             <RadioGroup
               value={formData.type}
               onValueChange={(value) => setFormData({ ...formData, type: value as OpportunityType })}
-              className="grid grid-cols-3 gap-4"
+              className={`grid grid-cols-3 gap-4 ${
+                isEdit ? "opacity-50 pointer-events-none" : ""
+              }`}
             >
               <div>
                 <RadioGroupItem value="internship" id="internship" className="peer sr-only" />
@@ -364,18 +416,6 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
                 </Label>
               </div>
             </RadioGroup>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="location">Ubicación *</Label>
-            <Input
-              id="location"
-              placeholder="ej: San José, Cartago, Remoto"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              required
-              disabled={isLoading}
-            />
           </div>
 
           <div className="space-y-2">
@@ -412,16 +452,6 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
 
           {(formData.type === "internship" || formData.type === "graduation-project") && (
             <div className="space-y-2">
-              <Label htmlFor="duration">Duración en meses *</Label>
-              <Input
-                id="duration"
-                placeholder="ej: 6 meses, 12 meses"
-                value={formData.duration}
-                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                required
-                disabled={isLoading}
-              />
-
               <Label htmlFor="schedule">Horario *</Label>
               <Input
                 id="schedule"
