@@ -25,7 +25,6 @@ export async function GET() {
       )
     `
     )
-    // ✅ USAR EL ESTADO REAL DE LA BD
     .eq("approval_status", "PENDING")
     // opcional, pero lógico: solo activas
     // .eq("lifecycle_status", "ACTIVE")
@@ -49,10 +48,10 @@ export async function GET() {
     (data ?? []).map((o: any) => ({
       id: o.id,
       title: o.title,
-      type: o.type, // TFG | JOB | INTERNSHIP | EMPLEO | etc
+      type: o.type,
       description: o.description ?? "",
       created_at: o.created_at,
-      approval_status: o.approval_status, // PENDING
+      approval_status: o.approval_status,
       lifecycle_status: o.lifecycle_status,
       mode: o.mode,
       requirements: o.requirements ?? "",

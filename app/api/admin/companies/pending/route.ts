@@ -1,41 +1,29 @@
 import { NextResponse } from "next/server"
-
-const mockPendingCompanies = [
-  {
-    id: "1",
-    name: "Tech Innovations CR",
-    email: "contact@techinnovations.cr",
-    website: "https://techinnovations.cr",
-    description: "Empresa de desarrollo de software especializada en soluciones empresariales.",
-    status: "pending",
-    createdAt: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Digital Marketing Solutions",
-    email: "info@digitalmarketing.cr",
-    website: "https://digitalmarketing.cr",
-    description: "Agencia de marketing digital y estrategias de contenido.",
-    status: "pending",
-    createdAt: "2024-01-16",
-  },
-  {
-    id: "3",
-    name: "Cloud Services Inc",
-    email: "hello@cloudservices.cr",
-    website: "https://cloudservices.cr",
-    description: "Proveedor de servicios cloud y consultoría en infraestructura.",
-    status: "pending",
-    createdAt: "2024-01-17",
-  },
-]
+import { createServerSupabase } from "@/lib/supabase/server"
 
 export async function GET() {
+  const supabase = await createServerSupabase()
+
   try {
-    // TODO: Replace with actual database query
-    return NextResponse.json(mockPendingCompanies)
-  } catch (error) {
-    console.error("[v0] Error fetching pending companies:", error)
-    return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 })
+    const { data: companies, error } = await supabase
+      .from("COMPANY")
+      .select("*")
+      .eq("approval_status", "Pendiente")
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      console.error("[v0] Supabase error:", error)
+      return NextResponse.json(
+        { message: "Error al obtener empresas pendientes", detail: error.message },
+        { status: 500 }
+      )
+    }
+
+    console.log("[v0] Pending companies fetched:", companies)
+
+    return NextResponse.json(Array.isArray(companies) ? companies : [])
+  } catch (err) {
+    console.error("[v0] Unexpected error:", err)
+    return NextResponse.json({ message: "Error interno del servidor", detail: String(err) }, { status: 500 })
   }
 }
