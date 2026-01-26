@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = await createServerSupabase()
 
-    // Auth + role (si falla, asumimos "anon" y NO aplicamos filtro student)
+    // Auth + role (si falla, asumimos "anon" y no aplicamos filtro por rol)
     let userId: string | null = null
     let userRole: string | null = null
 
@@ -57,7 +57,10 @@ export async function GET(req: NextRequest) {
         status,
         COMPANY:company_id ( name ),
         flyers ( url, formato ),
-        internship:INTERNSHIP!INTERNSHIP_opportunity_fkey ( schedule, duration )
+
+        internship:INTERNSHIP!INTERNSHIP_opportunity_fkey ( schedule, duration ),
+        tfg:TFG!TFG_opportunity_fkey ( schedule, duration ),
+        job:JOB!JOB_opportunity_fkey ( contract_type, salary_min, salary_max, benefits )
       `,
         { count: "exact" }
       )
@@ -74,15 +77,22 @@ export async function GET(req: NextRequest) {
       query = query.or(`title.ilike.%${clean}%,description.ilike.%${clean}%`)
     }
 
-    //  REGLA STUDENT: solo TFG + ACTIVE + OPEN
-      if (norm(userRole) === "STUDENT") {
-        query = query
-          .in("type", ["TFG", "INTERNSHIP"])
-          .eq("lifecycle_status", "ACTIVE")
-          .eq("status", "OPEN")
-          .eq("approval_status", "APPROVED")
-      }
+    // ✅ REGLAS POR ROL (solo cuando hay rol)
+    if (norm(userRole) === "STUDENT") {
+      query = query
+        .in("type", ["TFG", "INTERNSHIP"])
+        .eq("lifecycle_status", "ACTIVE")
+        .eq("status", "OPEN")
+        .eq("approval_status", "APPROVED")
+    }
 
+    if (norm(userRole) === "GRADUATE") {
+      query = query
+        .in("type", ["JOB"])
+        .eq("lifecycle_status", "ACTIVE")
+        .eq("status", "OPEN")
+        .eq("approval_status", "APPROVED")
+    }
 
     const { data, count, error } = await query
     if (error) throw error
@@ -90,6 +100,7 @@ export async function GET(req: NextRequest) {
     const rows = data ?? []
 
     // Auditoría búsqueda (solo si hay usuario)
+    // OJO: tu schema dice AUDIT_LOG.details = text, así que guardamos JSON.stringify(...)
     if (userId && (q || mode || companyId)) {
       await supabase.from("AUDIT_LOG").insert({
         action: "search",
@@ -97,13 +108,13 @@ export async function GET(req: NextRequest) {
         user_id: userId,
         entity_id: null,
         company_id: companyId || null,
-        details: {
+        details: JSON.stringify({
           scope: "CU-012",
           q,
           filters: { mode: mode || null, companyId: companyId || null },
           page,
           userRole,
-        },
+        }),
       })
     }
 
@@ -112,17 +123,23 @@ export async function GET(req: NextRequest) {
       title: row.title,
       company: row.COMPANY?.name ?? "Company",
       location: row.mode ?? "",
-      type: row.type, // ahora sí: TFG / INTERNSHIP / JOB
+      type: row.type, // TFG / INTERNSHIP / JOB
       description: row.description ?? "",
       postedAt: row.created_at,
-      status: row.status ?? "", // OPEN/CLOSED (nunca vacío si DB ya quedó bien)
+      status: row.status ?? "",
       lifecycle_status: row.lifecycle_status ?? null,
       approval_status: row.approval_status ?? null,
       flyerUrl: row.flyers?.[0]?.url ?? null,
 
-      // REQ-EE-004: duración estimada (si TFG usa INTERNSHIP.schedule)
-      duration_estimated: row?.internship?.schedule ?? "",
-      duration_interval: row?.internship?.duration ?? null,
+      // Duración estimada (sirve para INTERNSHIP y TFG)
+      duration_estimated: row?.internship?.schedule ?? row?.tfg?.schedule ?? "",
+      duration_interval: row?.internship?.duration ?? row?.tfg?.duration ?? null,
+
+      // Campos extra de JOB (si querés usarlos en UI)
+      contract_type: row?.job?.contract_type ?? null,
+      salary_min: row?.job?.salary_min ?? null,
+      salary_max: row?.job?.salary_max ?? null,
+      benefits: row?.job?.benefits ?? null,
     }))
 
     const total = count ?? mapped.length

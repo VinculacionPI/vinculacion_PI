@@ -31,6 +31,13 @@ interface OpportunityCardProps {
   onInterestToggle: (id: string, next: boolean) => void
 }
 
+/** Decide a qué detalle ir según tipo */
+const getDetailPath = (oppId: string, type: Opportunity["type"]) => {
+  // 👇 ajustá estos paths si tus rutas son distintas
+  if (type === "job") return `/dashboard/graduate/opportunities/${oppId}`
+  return `/dashboard/student/opportunities/${oppId}` // internship + graduation-project
+}
+
 export function OpportunityCard({
   opportunity,
   isInterested,
@@ -38,7 +45,7 @@ export function OpportunityCard({
 }: OpportunityCardProps) {
   const router = useRouter()
 
-  // ✅ blindaje: evita /undefined y UUID invalid
+  // ✅ blindaje: evita /undefined
   const oppId = typeof opportunity?.id === "string" ? opportunity.id.trim() : ""
   const hasValidId = oppId.length > 0
 
@@ -77,7 +84,8 @@ export function OpportunityCard({
       console.warn("OpportunityCard: navigation blocked, id inválido:", opportunity)
       return
     }
-    router.push(`/dashboard/student/opportunities/${oppId}`)
+
+    router.push(getDetailPath(oppId, opportunity.type))
   }
 
   return (
@@ -114,9 +122,7 @@ export function OpportunityCard({
                 : "Publicación no activa"
             }
           >
-            <Bookmark
-              className={`h-4 w-4 pointer-events-none ${isInterested ? "fill-current" : ""}`}
-            />
+            <Bookmark className={`h-4 w-4 pointer-events-none ${isInterested ? "fill-current" : ""}`} />
             <span className="sr-only">{isInterested ? "Retirar interés" : "Manifestar interés"}</span>
           </Button>
         </div>
