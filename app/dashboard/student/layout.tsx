@@ -20,6 +20,10 @@ export default async function StudentDashboardLayout({ children }: { children: R
     .eq("id", user.id)
     .single()
 
+  if (!userData) {
+    redirect("/login")
+  }
+
   // Verificar que el usuario tenga el rol correcto
   if (userData?.role.toLowerCase() !== "student") {
     redirect(`/dashboard/${userData?.role.toLowerCase() || "student"}`)

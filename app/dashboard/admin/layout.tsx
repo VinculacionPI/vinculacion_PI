@@ -20,6 +20,10 @@ export default async function AdminDashboardLayout({ children }: { children: Rea
     .eq("id", user.id)
     .single()
 
+  if (!userData) {
+    redirect("/login")
+  }
+
   // Verificar que el usuario tenga el rol correcto
   if (userData?.role.toLowerCase() !== "admin") {
     redirect(`/dashboard/${userData?.role.toLowerCase() || "student"}`)

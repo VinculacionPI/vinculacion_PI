@@ -20,6 +20,10 @@ export default async function GraduateDashboardLayout({ children }: { children: 
     .eq("id", user.id)
     .single()
 
+  if (!userData) {
+    redirect("/login")
+  }
+
   // Verificar que el usuario tenga el rol correcto
   if (userData?.role.toLowerCase() !== "graduate") {
     redirect(`/dashboard/${userData?.role.toLowerCase() || "student"}`)
