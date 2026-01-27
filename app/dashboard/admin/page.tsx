@@ -6,7 +6,7 @@ import { StatsCard } from "@/components/shared/stats-card"
 import { LoadingState } from "@/components/shared/loading-state"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Building2, Briefcase, Users, CheckCircle, Clock, User, X, GraduationCap } from "lucide-react"
+import { Building2, Briefcase, Users, CheckCircle, Clock, User, X, GraduationCap, BarChart } from "lucide-react"
 import { CompanyApprovalsTable } from "@/components/admin/company-approvals-table"
 import { OpportunityApprovalsTable } from "@/components/admin/opportunity-approvals-table"
 import { GraduatesApprovalsTable } from "@/components/admin/graduates-approvals-table"
@@ -106,22 +106,34 @@ export default function AdminDashboardPage() {
           <p className="text-muted-foreground">Gestiona aprobaciones y supervisa la plataforma</p>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              <User className="h-4 w-4" />
-              Admin
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-              <X className="h-4 w-4 mr-2" />
-              Cerrar Sesión
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-3">
+          {/* BOTÓN NUEVO: Informes */}
+          <Button 
+            variant="default" 
+            onClick={() => router.push('/informes')}
+            className="gap-2"
+          >
+            <BarChart className="h-4 w-4" />
+            Informes
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <User className="h-4 w-4" />
+                Admin
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                <X className="h-4 w-4 mr-2" />
+                Cerrar Sesión
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
@@ -156,7 +168,7 @@ export default function AdminDashboardPage() {
           description="Requieren revisión"
         />
 
-        {/* 👇 opcional: tarjeta de graduación (por ahora “—”) */}
+        {/* 👇 opcional: tarjeta de graduación (por ahora "—") */}
         <StatsCard
           title="Graduaciones Pendientes"
           value={pendingGraduations ?? "—"}
@@ -177,7 +189,7 @@ export default function AdminDashboardPage() {
             Oportunidades Pendientes ({stats.pendingOpportunities})
           </TabsTrigger>
 
-          {/* ✅ NUEVO TAB */}
+          {/* NUEVO TAB */}
           <TabsTrigger value="graduates">
             <GraduationCap className="h-4 w-4 mr-2" />
             Graduados Pendientes ({pendingGraduations ?? "—"})
@@ -192,7 +204,7 @@ export default function AdminDashboardPage() {
           <OpportunityApprovalsTable />
         </TabsContent>
 
-        {/* ✅ NUEVA SECCIÓN */}
+        {/* NUEVA SECCIÓN */}
         <TabsContent value="graduates">
           <GraduatesApprovalsTable />
         </TabsContent>

@@ -40,7 +40,7 @@ export default function OpportunitiesPage() {
         return t
       })
 
-      // Llamar a tu backend real (Persona 5)
+      // Llamar a tu backend real
       const response = await explorarOportunidades({
         busqueda: filters.search,
         tipo: tiposMapeados,

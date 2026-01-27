@@ -14,6 +14,26 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, 
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
 
+// Traducciones
+const translateStatus = (status: string): string => {
+  const translations: Record<string, string> = {
+    'OPEN': 'Abierto',
+    'CLOSED': 'Cerrado',
+    'ACTIVE': 'Activo',
+    'INACTIVE': 'Inactivo'
+  }
+  return translations[status] || status
+}
+
+const translateApprovalStatus = (status: string): string => {
+  const translations: Record<string, string> = {
+    'APPROVED': 'Aprobado',
+    'PENDING': 'Pendiente',
+    'REJECTED': 'Rechazado'
+  }
+  return translations[status] || status
+}
+
 interface TFGData {
   id: string
   title: string
@@ -61,40 +81,40 @@ export default function InformesPage() {
     }
   }
 
-    const handleGenerateReport = async () => {
+  const handleGenerateReport = async () => {
     setIsLoading(true)
     try {
-        const response = await generarInformeTFG({
+      const response = await generarInformeTFG({
         empresa_id: selectedEmpresa === "all" ? undefined : selectedEmpresa,
         tipo: selectedTipo === "all" ? undefined : selectedTipo,
-        })
+      })
 
-        console.log('Respuesta completa:', response)
+      console.log('Respuesta completa:', response)
 
-        if (response.success && response.data) {
+      if (response.success && response.data) {
         // Parsear el contenido JSON que viene como string
         const contenido = JSON.parse(response.data.contenido)
         
         // Transformar al formato esperado
         const transformedData: ReportData = {
-            total_tfgs: contenido.estadisticas.total_tfgs || 0,
-            activos: contenido.estadisticas.activos || 0,
-            cerrados: contenido.estadisticas.cerrados || 0,
-            pendientes_aprobacion: contenido.estadisticas.pendientes_aprobacion || 0,
-            aprobados: contenido.estadisticas.aprobados || 0,
-            rechazados: contenido.estadisticas.rechazados || 0,
-            tfgs: contenido.tfgs || []
+          total_tfgs: contenido.estadisticas.total_tfgs || 0,
+          activos: contenido.estadisticas.activos || 0,
+          cerrados: contenido.estadisticas.cerrados || 0,
+          pendientes_aprobacion: contenido.estadisticas.pendientes_aprobacion || 0,
+          aprobados: contenido.estadisticas.aprobados || 0,
+          rechazados: contenido.estadisticas.rechazados || 0,
+          tfgs: contenido.tfgs || []
         }
 
         console.log('Data transformada:', transformedData)
         setReportData(transformedData)
-        }
+      }
     } catch (err) {
-        console.error("Error generando reporte:", err)
+      console.error("Error generando reporte:", err)
     } finally {
-        setIsLoading(false)
+      setIsLoading(false)
     }
-    }
+  }
 
   const handleDownload = (format: "CSV" | "JSON" | "XLSX") => {
     if (!reportData) return
@@ -103,8 +123,8 @@ export default function InformesPage() {
       ID: tfg.id,
       Título: tfg.title,
       Empresa: tfg.company_name,
-      Estado: tfg.status,
-      Aprobación: tfg.approval_status,
+      Estado: translateStatus(tfg.status),
+      Aprobación: translateApprovalStatus(tfg.approval_status),
       Fecha: new Date(tfg.created_at).toLocaleDateString("es-CR"),
       Modalidad: tfg.mode,
       Tipo: tfg.type,
@@ -183,7 +203,7 @@ export default function InformesPage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Todas las empresas" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border shadow-lg z-50">
                   <SelectItem value="all">Todas las empresas</SelectItem>
                   {empresas.map((empresa) => (
                     <SelectItem key={empresa.id} value={empresa.id}>
@@ -200,7 +220,7 @@ export default function InformesPage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Todos los tipos" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border shadow-lg z-50">
                   <SelectItem value="all">Todos los tipos</SelectItem>
                   <SelectItem value="TFG">TFG</SelectItem>
                   <SelectItem value="PASANTIA">Pasantía</SelectItem>
@@ -305,7 +325,9 @@ export default function InformesPage() {
                           </p>
                         </div>
                         <div className="flex gap-2">
-                          <Badge variant={tfg.status === "OPEN" ? "default" : "secondary"}>{tfg.status}</Badge>
+                          <Badge variant={tfg.status === "OPEN" ? "default" : "secondary"}>
+                            {translateStatus(tfg.status)}
+                          </Badge>
                           <Badge
                             variant={
                               tfg.approval_status === "APPROVED"
@@ -315,7 +337,7 @@ export default function InformesPage() {
                                   : "destructive"
                             }
                           >
-                            {tfg.approval_status}
+                            {translateApprovalStatus(tfg.approval_status)}
                           </Badge>
                         </div>
                       </div>
