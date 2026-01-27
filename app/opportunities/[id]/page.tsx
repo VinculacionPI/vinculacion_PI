@@ -22,11 +22,14 @@ import {
   CheckCircle2,
   ExternalLink,
 } from "lucide-react"
+import { getCurrentUser } from "@/lib/auth/get-current-user"
 
 export default function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [opportunity, setOpportunity] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
+  const [role, setRole] = useState<string>('student')
 
   useEffect(() => {
     async function loadOpportunity() {
@@ -71,9 +74,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   website: null,
                   flyer_url: data.flyer_url || null,
                 })
-        import('@/lib/services/api').then(({ registrarVisualizacion }) => {
-          registrarVisualizacion(id).catch(err => console.log('Error registrando visualización:', err))
-        })
+        //import('@/lib/services/api').then(({ registrarVisualizacion }) => {
+        //  registrarVisualizacion(id).catch(err => console.log('Error registrando visualización:', err))
+        //})
       } catch (err) {
         console.error('Error cargando oportunidad:', err)
         setOpportunity(null)
@@ -82,7 +85,19 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       }
     }
 
+    async function loadUser() {
+      try {
+        const currentUser = await getCurrentUser()
+        setUser(currentUser)
+        setRole(currentUser?.user_metadata?.role || 'student')
+      } catch (err) {
+        console.error('Error cargando usuario:', err)
+        setRole('student')
+      }
+    }
+
     loadOpportunity()
+    loadUser()
   }, [id])
 
   if (isLoading) {
@@ -109,12 +124,19 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       <DashboardHeader />
 
       <div className="container mx-auto px-4 py-8">
-        <Link href="/dashboard/student">
-          <Button variant="ghost" className="mb-6">
+        {user ? (
+          <Link href={`/dashboard/${user.user_metadata?.role || 'student'}`}>
+            <Button variant="ghost" className="mb-6">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Volver al Dashboard
+            </Button>
+          </Link>
+        ) : (
+          <Button variant="ghost" className="mb-6" disabled>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver a oportunidades
+            Cargando...
           </Button>
-        </Link>
+        )}
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -224,7 +246,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   Guardar para después
                 </Button>
 
-                      <FlyerButton 
+                <FlyerButton 
                   opportunityId={id} 
                   currentFlyerUrl={opportunity.flyer_url}
                 />
@@ -235,4 +257,4 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       </div>
     </div>
   )
-}
+}        

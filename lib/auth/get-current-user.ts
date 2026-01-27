@@ -26,7 +26,7 @@ export async function getCurrentCompanyId(): Promise<string | null> {
     }
     
     // FALLBACK
-    console.warn('⚠️ Usuario no autenticado, usando empresa de prueba')
+    console.warn('Usuario no autenticado, usando empresa de prueba')
     return 'caa6a12e-b110-4616-b786-7f18fea2b443'
   } catch (error) {
     console.error('Error obteniendo company_id:', error)

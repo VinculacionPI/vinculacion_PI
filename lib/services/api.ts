@@ -65,31 +65,6 @@ export async function registrarVisualizacion(publicacionId: string): Promise<voi
   }
 }
 
-export async function enviarNotificacion({
-  usuario_destino,
-  tipo,
-  titulo,
-  contenido,
-  entidad_tipo,
-  entidad_id,
-}: {
-  usuario_destino: string
-  tipo: string
-  titulo: string
-  contenido?: string
-  entidad_tipo?: string
-  entidad_id?: string
-}) {
-  return callEdgeFunction('enviar-notificacion', {
-    usuario_destino,
-    tipo,
-    titulo,
-    contenido,
-    entidad_tipo,
-    entidad_id,
-    enviar_email: true,
-  })
-}
 
 export async function generarFlyer(publicacionId: string, plantilla = 'default') {
   return callEdgeFunction('generar-flyer', {
@@ -142,4 +117,38 @@ export async function obtenerOportunidadesEmpresa(empresaId: string) {
   }
   
   return data || []
+}
+
+
+export async function enviarNotificacion(params: {
+  usuario_destino: string
+  tipo: string
+  titulo: string
+  mensaje: string
+  entidad_tipo?: string
+  entidad_id?: string
+}) {
+  try {
+    const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const response = await fetch(`${BACKEND_URL}/functions/v1/enviar-notificacion`, {
+      method: 'POST',
+      headers: {
+        'apikey': ANON_KEY,
+        'Authorization': `Bearer ${ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params)
+    })
+
+    const result = await response.json()
+    
+    if (!response.ok) {
+      console.error('Error enviando notificación:', result)
+    }
+    
+    return result
+  } catch (error) {
+    console.error('Error:', error)
+    return { success: false, error }
+  }
 }
