@@ -17,11 +17,20 @@ export interface ExplorarOportunidadesResponse {
 async function callEdgeFunction<T>(functionName: string, body: any): Promise<T> {
   const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   
+  // Obtener el token de sesión del usuario
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  
+  if (!token) {
+    console.error('No access token found')
+    throw new Error('Usuario no autenticado')
+  }
+  
   const response = await fetch(`${BACKEND_URL}/functions/v1/${functionName}`, {
     method: 'POST',
     headers: {
       'apikey': ANON_KEY,
-      'Authorization': `Bearer ${ANON_KEY}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -29,13 +38,12 @@ async function callEdgeFunction<T>(functionName: string, body: any): Promise<T> 
 
   if (!response.ok) {
     const errorText = await response.text()
-    console.error(`[persona5] Error ${response.status}:`, errorText)
+    console.error(`Error ${response.status}:`, errorText)
     throw new Error(`Error ${response.status}: ${errorText}`)
   }
 
   return response.json()
 }
-
 export async function obtenerDashboardEmpresa(empresaId: string, dias = 30): Promise<DashboardEmpresaResponse> {
   return callEdgeFunction('dashboard-empresa', { empresa_id: empresaId, dias })
 }

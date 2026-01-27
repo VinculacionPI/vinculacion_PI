@@ -1,31 +1,40 @@
-import { NextResponse, NextRequest } from "next/server"
-import { cookies } from "next/headers"
-import { createRouteSupabase } from "@/lib/supabase/route"
+import { NextRequest, NextResponse } from "next/server"
+import { createServerSupabase } from "@/lib/supabase/server"
 
 export async function GET(req: NextRequest) {
-  const cookie = (await cookies()).get("company_session")
+  const supabase = await createServerSupabase()
 
-  if (!cookie) return NextResponse.json({ metrics: null }, { status: 401 })
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  let session
-  try {
-    session = JSON.parse(cookie.value)
-  } catch {
-    return NextResponse.json({ metrics: null }, { status: 401 })
+  console.log('🔍 Metrics API - User:', user?.email)
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
   }
 
-  const companyId = session.company_id
-  if (!companyId) return NextResponse.json({ metrics: null }, { status: 401 })
+  const companyId = user.user_metadata?.company_id
 
-  const { supabase } = createRouteSupabase(req)
+  console.log('✅ Calling RPC with company_id:', companyId)
 
-  const { data, error } = await supabase.rpc("metricas_empresa", {
+  const { data, error } = await supabase.rpc('get_dashboard_empresa', {
     p_empresa_id: companyId,
+    p_dias: 30
   })
 
-  if (error || !data || data.length === 0) {
-    return NextResponse.json({ metrics: null }, { status: 500 })
+  if (error) {
+    console.error('❌ RPC error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ metrics: data[0] })
+  console.log('✅ Dashboard data:', data)
+
+  return NextResponse.json({
+    success: true,
+    data: data,
+    metadata: {
+      empresa_id: companyId,
+      periodo_dias: 30,
+      timestamp: new Date().toISOString()
+    }
+  })
 }

@@ -106,18 +106,21 @@ export default function CompanyDashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const empresaId = await getCurrentCompanyId()
+      const res = await fetch('/api/company/dashboard/metrics', {
+        method: 'GET',
+        credentials: 'include'
+      })
       
-      // Llamar a la Edge Function correcta
-      const { obtenerDashboardEmpresa } = await import('@/lib/services/api')
-      const data = await obtenerDashboardEmpresa(empresaId, 30)
+      console.log('Response status:', res.status)
       
+      const data = await res.json()
       console.log('Dashboard data recibida:', data)
       
-      if (data.success) {
+      if (res.ok && data.success) {
         setDashboardData(data.data)
       } else {
         console.error('Error cargando dashboard:', data)
+        console.error('Response status:', res.status)
       }
     } catch (err) {
       console.error('Error cargando dashboard:', err)

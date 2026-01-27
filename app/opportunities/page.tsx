@@ -68,7 +68,7 @@ export default function OpportunitiesPage() {
         setTotalResults(response.paginacion.total_resultados)
       }
     } catch (error) {
-      console.error("[persona5] Error fetching opportunities:", error)
+      console.error("Error fetching opportunities:", error)
       
       // FALLBACK: Si falla, usar API original de los compañeros
       try {
