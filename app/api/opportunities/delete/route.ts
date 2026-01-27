@@ -1,63 +1,44 @@
-import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteSupabase } from "@/lib/supabase/route";
+import { NextRequest, NextResponse } from "next/server"
+import { createServerSupabase } from "@/lib/supabase/server"
 
 export async function POST(req: NextRequest) {
-  const cookie = (await cookies()).get("company_session");
-  if (!cookie) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const supabase = await createServerSupabase()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
-  let session;
-  try {
-    session = JSON.parse(cookie.value);
-  } catch {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const role = user.user_metadata?.role
+  if (role !== 'company' && role !== 'admin') {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 })
   }
 
-  const companyId = session.company_id;
-  if (!companyId) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
-
-  const { supabase } = createRouteSupabase(req);
-
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
-  }
-
-  const { opportunity_id } = body;
+  const body = await req.json()
+  const { opportunity_id } = body
 
   if (!opportunity_id) {
-    return NextResponse.json(
-      { error: "opportunity_id es obligatorio" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "opportunity_id requerido" }, { status: 400 })
   }
 
   try {
-    const { error } = await supabase.rpc("deleteopportunity", {
-      p_opportunity_id: opportunity_id,
-      p_company_id: companyId,
-    });
+    // Llamar a la función RPC
+    const { data, error } = await supabase.rpc('deleteopportunity', {
+      p_opportunity_id: opportunity_id
+    })
 
     if (error) {
-      console.error("RPC deleteopportunity error:", error);
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      console.error('RPC deleteopportunity error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({
       success: true,
-      deleted: true,
-    });
+      message: 'Oportunidad eliminada'
+    })
   } catch (err: any) {
-    console.error("Delete opportunity exception:", err);
-    return NextResponse.json(
-      { error: err?.message ?? "Error desconocido" },
-      { status: 500 }
-    );
+    console.error('Exception:', err)
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

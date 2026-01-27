@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteSupabase } from "@/lib/supabase/route";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
-  const cookie = (await cookies()).get("company_session");
-  if (!cookie) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const supabase = await createServerSupabase();
 
-  let session;
-  try { session = JSON.parse(cookie.value); } 
-  catch { return NextResponse.json({ error: "No autorizado" }, { status: 401 }); }
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-  const companyId = session.company_id;
-  if (!companyId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (authError || !user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
 
-  const { supabase } = createRouteSupabase(req);
+  const role = user.user_metadata?.role;
+  if (role !== 'company') {
+    return NextResponse.json({ error: "Solo empresas pueden crear TFGs" }, { status: 403 });
+  }
+
+  const companyId = user.user_metadata?.company_id;
+  if (!companyId) {
+    return NextResponse.json({ error: "No se encontró company_id" }, { status: 401 });
+  }
 
   let body;
-  try { body = await req.json(); } 
-  catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }); }
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
 
   const {
     i_id,
@@ -41,7 +49,6 @@ export async function POST(req: NextRequest) {
         : i_remuneration
       : null;
 
-    // Llamar la función RPC con los parámetros en el orden correcto
     const { data, error } = await supabase.rpc("createupdatetfg", {
       i_id: i_id ?? null,
       i_title: i_title,

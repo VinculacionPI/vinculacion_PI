@@ -689,44 +689,61 @@ function OpportunitiesList({
                   )}
                 </div>
 
-                <div className="flex gap-2">
-                  {/* BOTÓN NUEVO: Ver Interesados */}
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => openInteresadosModal(opp)}
-                  >
-                    <Users className="h-4 w-4 mr-1" />
-                    Ver Interesados
-                  </Button>
-
-                  <Link href={`/opportunities/${opp.id}`}>
-                    <Button variant="outline" size="sm">
-                      <Eye className="h-4 w-4 mr-1" />
-                      Ver Público
+        <div className="flex gap-2 items-center">
+                    {/* BOTÓN: Ver Interesados */}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => openInteresadosModal(opp)}
+                    >
+                      <Users className="h-4 w-4 mr-1" />
+                      Ver Interesados
                     </Button>
-                  </Link>
 
-                  <Link href={`/dashboard/company/opportunities/${opp.id}/edit?empresa_id=${empresaId}`}>
-                    <Button variant="outline" size="sm">
-                      Editar
-                    </Button>
-                  </Link>
+                    {/* BOTÓN: Ver Público */}
+                    <Link href={`/opportunities/${opp.id}?from=company-dashboard`}>
+                      <Button variant="outline" size="sm">
+                        <Eye className="h-4 w-4 mr-1" />
+                        Ver Público
+                      </Button>
+                    </Link>
 
-                  <LifecycleSelect
-                    value={opp.lifecycle_status}
-                    opportunityId={opp.id}
-                    onStatusChange={handleStatusChange}
-                  />
+                    {/* BOTÓN: Editar */}
+                    <Link href={`/dashboard/company/opportunities/${opp.id}/edit?empresa_id=${empresaId}`}>
+                      <Button variant="outline" size="sm">
+                        Editar
+                      </Button>
+                    </Link>
 
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => openDeleteModal(opp)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                    {/* BOTÓN: Eliminar */}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => openDeleteModal(opp)}
+                      disabled={opp.lifecycle_status !== 'CANCELED'}
+                      title={opp.lifecycle_status !== 'CANCELED' ? 'Solo se pueden eliminar oportunidades canceladas' : ''}
+                    >
+                      <Trash2 className="h-4 w-4" />
+
+                    <div className="flex items-center gap-2">
+                        {/* SELECTOR: Lifecycle Status */}
+                        <LifecycleSelect
+                          value={opp.lifecycle_status || 'ACTIVE'}
+                          opportunityId={opp.id}
+                          onStatusChange={handleStatusChange}
+                        />
+
+                        {/* DELETE BUTTON */}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => openDeleteModal(opp)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+
               </div>
             </CardContent>
           </Card>

@@ -75,12 +75,21 @@ export async function registrarVisualizacion(publicacionId: string): Promise<voi
 }
 
 
-export async function generarFlyer(publicacionId: string, plantilla = 'default') {
-  return callEdgeFunction('generar-flyer', {
-    publicacion_id: publicacionId,
-    plantilla,
-  })
-}
+  export async function generarFlyer(publicacionId: string, plantilla = 'default') {
+    // Llamar al API route en lugar de Edge Function directamente
+    const response = await fetch('/api/flyer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publicacion_id: publicacionId, plantilla })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Error generando flyer')
+    }
+
+    return response.json()
+  }
 
   export async function generarInformeTFG({
     empresa_id,
