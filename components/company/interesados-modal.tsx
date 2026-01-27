@@ -131,7 +131,7 @@ export function InteresadosModal({ opportunityId, opportunityTitle, isOpen, onCl
               <Users className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-600">{stats.interest_count}</div>
+              <div className="text-3xl font-bold text-blue-600">{interesados.length}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Personas que mostraron interés
               </p>
