@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     // Cuerpo del correo
     const info = await transporter.sendMail({
       from: '"Plataforma Vinculación" <vinculacionempresarial0@gmail.com>',
-      to: "tvillarevia118740742@gmail.com", // admin
+      to: "vinculacionlaboralpi@gmail.com",
       subject: "Nueva solicitud de empresa pendiente",
       html: `
         <p>Se ha registrado una nueva empresa:</p>
