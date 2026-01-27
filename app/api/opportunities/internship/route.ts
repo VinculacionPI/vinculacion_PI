@@ -1,29 +1,22 @@
 // app/api/opportunities/internship/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createRouteSupabase } from "@/lib/supabase/route";
 
 export async function POST(req: NextRequest) {
-  const cookie = (await cookies()).get("company_session");
+  const { supabase } = createRouteSupabase(req);
 
-  if (!cookie) {
+  // Obtener usuario logueado desde Supabase
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  let session;
-  try {
-    session = JSON.parse(cookie.value);
-  } catch {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
-
-  const companyId = session.company_id;
+  const companyId = user.user_metadata?.company_id;
   if (!companyId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const { supabase } = createRouteSupabase(req);
-
+  // Leer body
   let body;
   try {
     body = await req.json();
@@ -57,7 +50,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.rpc("createupdateinternship", {
       i_id: i_id ?? null,
       i_title,
-      i_type, // SOLO se usa en CREATE (SP ya lo respeta)
+      i_type,
       i_description,
       i_mode,
       i_area,
@@ -66,7 +59,7 @@ export async function POST(req: NextRequest) {
       i_duration,
       i_schedule,
       i_remuneration: remunerationValue,
-      i_company_id: companyId,
+      i_company_id: companyId, // ← toma la compañía del usuario logueado
       i_flyer_url: i_flyer_url ?? null,
     });
 

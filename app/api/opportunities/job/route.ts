@@ -1,29 +1,22 @@
 // app/api/opportunities/job/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createRouteSupabase } from "@/lib/supabase/route";
 
 export async function POST(req: NextRequest) {
-  const cookie = (await cookies()).get("company_session");
+  const { supabase } = createRouteSupabase(req);
 
-  if (!cookie) {
+  // Obtener usuario logueado desde Supabase
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  let session;
-  try {
-    session = JSON.parse(cookie.value);
-  } catch {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
-
-  const companyId = session.company_id;
+  const companyId = user.user_metadata?.company_id;
   if (!companyId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const { supabase } = createRouteSupabase(req);
-
+  // Leer body
   let body;
   try {
     body = await req.json();
@@ -84,7 +77,7 @@ export async function POST(req: NextRequest) {
       j_salary_max: salaryMaxValue,
       j_benefits,
       j_estimated_start_date,
-      j_company_id: companyId,
+      j_company_id: companyId, // ← toma la compañía del usuario logueado
       j_flyer_url: j_flyer_url ?? null,
     });
 
