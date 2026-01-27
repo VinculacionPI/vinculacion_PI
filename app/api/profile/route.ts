@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   // Obtener datos adicionales del usuario desde la tabla users
   const { data: userData, error: dbError } = await supabase
     .from("USERS")
-    .select("id, name, email, role, cedula, phone, personalEmail, carnet, semester, address")
+    .select("id, name, email, role, status, cedula, phone, personalEmail, carnet, semester, address, created_at")
     .eq("id", user.id)
     .single()
 
@@ -32,12 +32,14 @@ export async function GET(req: NextRequest) {
       name: userData.name,
       email: userData.email,
       role: userData.role,
+      status: userData.status,
       cedula: userData.cedula,
       phone: userData.phone,
       personalEmail: userData.personalEmail,
       carnet: userData.carnet,
       semester: userData.semester,
       address: userData.address,
+      createdAt: userData.created_at,
     },
     { status: 200 }
   )
