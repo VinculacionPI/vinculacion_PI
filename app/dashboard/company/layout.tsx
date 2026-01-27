@@ -8,19 +8,16 @@ export default async function CompanyDashboardLayout({ children }: { children: R
   
   const { data: { user }, error } = await supabase.auth.getUser()
   
-  console.log('🔍 Company Layout - User:', user?.email)
-  console.log('🔍 Company Layout - Error:', error)
-  console.log('🔍 Company Layout - Role:', user?.user_metadata?.role)
-  
+
   if (error || !user) {
-    console.log('❌ No user, redirecting to login')
+    console.log('No user, redirecting to login')
     redirect("/login")
   }
 
   // Verificar que sea empresa
   const role = user.user_metadata?.role
   if (role !== "company") {
-    console.log('❌ Not company role, redirecting to login')
+    console.log('Not company role, redirecting to login')
     redirect("/login")
   }
 
@@ -31,7 +28,7 @@ export default async function CompanyDashboardLayout({ children }: { children: R
     .eq('id', user.user_metadata?.company_id)
     .single()
 
-  console.log('✅ Company loaded:', company?.name)
+  console.log('Company loaded:', company?.name)
 
   return (
     <div className="min-h-screen bg-background">
