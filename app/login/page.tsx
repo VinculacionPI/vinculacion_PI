@@ -46,7 +46,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
             <Briefcase className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold text-foreground">TEC Empleos</span>
+            <span className="text-2xl font-bold text-foreground">Vinculación Empresarial PI</span>
           </Link>
           <h1 className="text-2xl font-bold text-foreground mb-2">Iniciar Sesión</h1>
           <p className="text-muted-foreground">Ingresa a tu cuenta para continuar</p>

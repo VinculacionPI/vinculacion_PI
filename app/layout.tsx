@@ -8,7 +8,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "TEC Empleos - Instituto Tecnológico de Costa Rica",
+  title: "Vinculación Empresarial PI - Instituto Tecnológico de Costa Rica",
   description: "Plataforma institucional de oportunidades laborales para estudiantes, graduados y empresas del TEC",
   generator: "v0.app",
   icons: {
