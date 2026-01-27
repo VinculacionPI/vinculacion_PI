@@ -724,22 +724,25 @@ function OpportunitiesList({
                       title={opp.lifecycle_status !== 'CANCELED' ? 'Solo se pueden eliminar oportunidades canceladas' : ''}
                     >
                       <Trash2 className="h-4 w-4" />
-                    {/* SELECTOR: Lifecycle Status */}
-                    <LifecycleSelect
-                      value={opp.lifecycle_status || 'ACTIVE'}
-                      opportunityId={opp.id}
-                      onStatusChange={handleStatusChange}
-                    />
 
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => openDeleteModal(opp)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {/* SELECTOR: Lifecycle Status */}
+                        <LifecycleSelect
+                          value={opp.lifecycle_status || 'ACTIVE'}
+                          opportunityId={opp.id}
+                          onStatusChange={handleStatusChange}
+                        />
 
-                </div>
+                        {/* DELETE BUTTON */}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => openDeleteModal(opp)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
 
               </div>
             </CardContent>
