@@ -438,7 +438,7 @@ export default function GraduateDashboardPage() {
                       <SelectTrigger>
                         <SelectValue placeholder="Todas las modalidades" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-background text-foreground border border-border shadow-md">
                         <SelectItem value="all">Todas</SelectItem>
                         <SelectItem value="presencial">Presencial</SelectItem>
                         <SelectItem value="virtual">Virtual</SelectItem>
