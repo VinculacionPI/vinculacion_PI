@@ -280,8 +280,6 @@ export default function CompanyDashboardPage() {
               Nueva Oportunidad
             </Button>
           </Link>
-
-          <CompanyMenu />
         </div>
       </div>
 
@@ -584,17 +582,6 @@ function OpportunitiesList({
 
     setIsDeleting(true)
     try {
-      // Primero cambiar estado a CANCELED
-      await fetch("/api/opportunities/lifecycle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          opportunity_id: selectedOpp.id,
-          lifecycle_status: "CANCELED",
-        }),
-      })
-
       // Luego eliminar
       const res = await fetch("/api/opportunities/delete", {
         method: "POST",
@@ -737,15 +724,23 @@ function OpportunitiesList({
                       title={opp.lifecycle_status !== 'CANCELED' ? 'Solo se pueden eliminar oportunidades canceladas' : ''}
                     >
                       <Trash2 className="h-4 w-4" />
-                    </Button>
-
                     {/* SELECTOR: Lifecycle Status */}
                     <LifecycleSelect
                       value={opp.lifecycle_status || 'ACTIVE'}
                       opportunityId={opp.id}
                       onStatusChange={handleStatusChange}
                     />
-                  </div>
+
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => openDeleteModal(opp)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+
+                </div>
+
               </div>
             </CardContent>
           </Card>
