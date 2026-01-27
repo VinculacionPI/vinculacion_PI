@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Download, Bookmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { registrarVisualizacion } from "@/lib/services/api"
 
 type JobDetail = {
   contract_type: string | null
@@ -73,6 +74,7 @@ export default function GraduateOpportunityDetailPage() {
 
         const json = (await res.json()) as OpportunityDetail
         setData(json)
+        registrarVisualizacion(id).catch(err => console.log('Error registrando visualización:', err))
       } catch (e) {
         console.error("Error loading opportunity detail:", e)
         setData(null)
