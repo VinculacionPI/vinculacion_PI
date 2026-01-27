@@ -36,6 +36,8 @@ import { getCurrentCompanyId } from '@/lib/auth/get-current-user'
 import { Trash2, Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { CompanyMenu } from "@/components/company/company-menu"
+import { InteresadosModal } from "@/components/company/interesados-modal"
+import { Users } from "lucide-react"
 
 interface Filters {
   search: string
@@ -77,6 +79,8 @@ export default function CompanyDashboardPage() {
     dateFrom: '',
     dateTo: ''
   })
+  const [interesadosModalOpen, setInteresadosModalOpen] = useState(false)
+  const [selectedOpportunity, setSelectedOpportunity] = useState<{id: string, title: string} | null>(null)
 
   // Cargar company_id del usuario autenticado
   useEffect(() => {
@@ -546,10 +550,13 @@ function OpportunitiesList({
 }) {
   const router = useRouter()
   const [localOpportunities, setLocalOpportunities] = useState(opportunities)
-
   const [open, setOpen] = useState(false)
   const [selectedOpp, setSelectedOpp] = useState<any | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Estados para modal de interesados
+  const [interesadosModalOpen, setInteresadosModalOpen] = useState(false)
+  const [selectedOpportunity, setSelectedOpportunity] = useState<{id: string, title: string} | null>(null)
 
   // Actualizar cuando cambien las oportunidades del padre
   useEffect(() => {
@@ -559,6 +566,11 @@ function OpportunitiesList({
   const openDeleteModal = (opp: any) => {
     setSelectedOpp(opp)
     setOpen(true)
+  }
+  
+  const openInteresadosModal = (opp: any) => {
+    setSelectedOpportunity({ id: opp.id, title: opp.title })
+    setInteresadosModalOpen(true)
   }
 
   const handleDelete = async () => {
@@ -660,11 +672,29 @@ function OpportunitiesList({
 
             <CardContent>
               <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
-                  {new Date(opp.created_at).toLocaleDateString('es-CR')}
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-muted-foreground">
+                    {new Date(opp.created_at).toLocaleDateString('es-CR')}
+                  </div>
+                  {opp.interest_count > 0 && (
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Users className="h-4 w-4" />
+                      <span>{opp.interest_count} interesado{opp.interest_count !== 1 ? 's' : ''}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
+                  {/* BOTÓN NUEVO: Ver Interesados */}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => openInteresadosModal(opp)}
+                  >
+                    <Users className="h-4 w-4 mr-1" />
+                    Ver Interesados
+                  </Button>
+
                   <Link href={`/opportunities/${opp.id}`} target="_blank">
                     <Button variant="outline" size="sm">
                       <Eye className="h-4 w-4 mr-1" />
@@ -691,7 +721,6 @@ function OpportunitiesList({
                     opportunityId={opp.id}
                     onStatusChange={handleStatusChange}
                   />
-
                 </div>
               </div>
             </CardContent>
@@ -737,6 +766,19 @@ function OpportunitiesList({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL INTERESADOS */}
+      {selectedOpportunity && (
+        <InteresadosModal
+          opportunityId={selectedOpportunity.id}
+          opportunityTitle={selectedOpportunity.title}
+          isOpen={interesadosModalOpen}
+          onClose={() => {
+            setInteresadosModalOpen(false)
+            setSelectedOpportunity(null)
+          }}
+        />
+      )}
     </>
   )
 }

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
@@ -150,5 +151,82 @@ export async function enviarNotificacion(params: {
   } catch (error) {
     console.error('Error:', error)
     return { success: false, error }
+  }
+}
+
+
+export async function obtenerInteresados(params: {
+  opportunity_id: string
+  filters?: {
+    carrera?: string
+    fecha_desde?: string
+    fecha_hasta?: string
+  }
+}) {
+  try {
+    const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const response = await fetch(`${BACKEND_URL}/functions/v1/obtener-interesados`, {
+      method: 'POST',
+      headers: {
+        'apikey': ANON_KEY,
+        'Authorization': `Bearer ${ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params)
+    })
+
+    const result = await response.json()
+    
+    if (!response.ok) {
+      console.error('Error obteniendo interesados:', result)
+    }
+    
+    return result
+  } catch (error) {
+    console.error('Error:', error)
+    return { success: false, error }
+  }
+}
+
+export async function registrarInteres(opportunity_id: string) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) throw new Error('Usuario no autenticado')
+
+    const { data, error } = await supabase
+      .from('INTEREST')
+      .insert({
+        opportunity_id,
+        user_id: user.id
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error: any) {
+    console.error('Error registrando interés:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function eliminarInteres(opportunity_id: string) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) throw new Error('Usuario no autenticado')
+
+    const { error } = await supabase
+      .from('INTEREST')
+      .delete()
+      .eq('opportunity_id', opportunity_id)
+      .eq('user_id', user.id)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error eliminando interés:', error)
+    return { success: false, error: error.message }
   }
 }
