@@ -15,6 +15,9 @@ import { generarFlyer } from "@/lib/services/api"
 import type { OpportunityType } from "@/lib/types"
 import { getCurrentCompanyId } from '@/lib/auth/get-current-user'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { supabase } from "@/lib/supabase/client"
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 interface OpportunityFormProps {
   initialData?: {
@@ -54,6 +57,8 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
   const [error, setError] = useState("")
   const [showFlyerStep, setShowFlyerStep] = useState(false)
   const [createdOpportunityId, setCreatedOpportunityId] = useState<string | null>(null)
+  const [flyerGenerated, setFlyerGenerated] = useState(false)
+  const [flyerUploaded, setFlyerUploaded] = useState(false)
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     description: initialData?.description || "",
@@ -72,7 +77,8 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    setIsLoading(false)
+    setShowFlyerStep(true)
     setError("")
 
     try {
@@ -183,55 +189,84 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
     }
   }
 
-
-  const handleGenerateFlyer = async () => {
-    if (!createdOpportunityId) return
+const handleGenerateFlyer = async () => {
+  if (!createdOpportunityId) {
+    alert('No hay ID de oportunidad')
+    return
+  }
+  
+  console.log('🎨 PASO 1: Iniciando generación')
+  setIsLoading(true)
+  setError("")
+  
+  try {
+    console.log('🎨 PASO 2: Llamando a generarFlyer con ID:', createdOpportunityId)
     
-    setIsLoading(true)
-    try {
-      console.log('Generando flyer para:', createdOpportunityId)
-      const result = await generarFlyer(createdOpportunityId)
+    const result = await generarFlyer(createdOpportunityId)
+    
+    console.log('🎨 PASO 3: Resultado recibido')
+    
+    if (result?.success && result?.data?.html) {
+      console.log('🎨 PASO 4: Subiendo HTML a Storage...')
       
-      console.log('Resultado completo:', result)
+      // Convertir HTML a Blob
+      const blob = new Blob([result.data.html], { type: 'text/html;charset=utf-8' })
+      const fileName = `flyer-${createdOpportunityId}-${Date.now()}.html`
       
-      if ((result as any)?.success && (result as any)?.data?.html) {
-        // Guardar el flyer URL en la base de datos
-        const flyerUrl = `data:text/html;base64,${btoa((result as any).data.html)}`
-        
-        const saveResponse = await fetch(`/api/opportunities/${createdOpportunityId}/flyer`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ flyer_url: flyerUrl }),
+      // Subir a Storage
+      const { error: uploadError } = await supabase.storage
+        .from('flyers')
+        .upload(fileName, blob, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: 'text/html; charset=utf-8'
         })
 
-        if (!saveResponse.ok) {
-          throw new Error('Error guardando el flyer')
-        }
+      if (uploadError) throw uploadError
 
-        console.log('Flyer guardado exitosamente')
+      // Obtener URL pública
+      const { data: urlData } = supabase.storage
+        .from('flyers')
+        .getPublicUrl(fileName)
 
-        // Abrir en nueva ventana
-        const win = window.open('', '_blank')
-        if (win) {
-          win.document.open()
-          win.document.write((result as any).data.html)
-          win.document.close()
-        } else {
-          console.warn('No se pudo abrir la ventana del flyer')
-        }
+      const publicUrl = urlData.publicUrl
 
-        // Redirigir después de 2 segundos
-        setTimeout(() => router.push("/dashboard/company"), 2000)
-      } else {
-        console.error('Error en respuesta:', result)
-        throw new Error((result as any)?.error || 'No hay HTML')
+      console.log('🎨 PASO 5: Guardando URL en BD...')
+      
+      const saveResponse = await fetch(`/api/opportunities/${createdOpportunityId}/flyer`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flyer_url: publicUrl }),
+      })
+
+      if (!saveResponse.ok) {
+        throw new Error('Error guardando el flyer')
       }
-    } catch (err: any) {
-      console.error('Exception:', err)
-      setError(`Error generando flyer: ${err.message}`)
-      setIsLoading(false)
+
+      console.log('🎨 PASO 6: Flyer guardado, abriendo ventana...')
+      setFlyerGenerated(true)
+
+      // Abrir HTML directamente
+      const win = window.open('', '_blank')
+      if (win) {
+        win.document.open()
+        win.document.write(result.data.html)
+        win.document.close()
+      }
+
+      console.log('🎨 PASO 7: Redirigiendo en 2 segundos...')
+      setTimeout(() => router.push("/dashboard/company"), 2000)
+    } else {
+      throw new Error('No se recibió HTML del flyer')
     }
+  } catch (err: any) {
+    console.error('🎨 ERROR:', err)
+    alert(`Error: ${err.message}`)
+    setError(`Error: ${err.message}`)
+  } finally {
+    setIsLoading(false)
   }
+}
 
   const handleSkipFlyer = async () => {
     router.push("/dashboard/company")
@@ -305,25 +340,42 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
+              {/* Botón Generar Automáticamente */}
               <Button
                 variant="outline"
-                className="h-auto p-6 flex flex-col items-center gap-3 hover:border-primary"
+                className={`h-auto p-6 flex flex-col items-center gap-3 hover:border-primary ${
+                  flyerUploaded ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
                 onClick={handleGenerateFlyer}
-                disabled={isLoading}
+                disabled={isLoading || flyerUploaded}
+                type="button"
               >
-                <FileText className="h-8 w-8 text-primary" />
-                <div className="text-center">
-                  <p className="font-semibold">Generar Automáticamente</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Flyer profesional con datos de la oportunidad
-                  </p>
-                </div>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                    <div className="text-center">
+                      <p className="font-semibold">Generando...</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-8 w-8 text-primary" />
+                    <div className="text-center">
+                      <p className="font-semibold">Generar Automáticamente</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Flyer profesional con datos de la oportunidad
+                      </p>
+                    </div>
+                  </>
+                )}
               </Button>
 
-              <div>
+              {/* Subir Flyer Personalizado */}
+              <div className={flyerGenerated ? 'opacity-50 pointer-events-none' : ''}>
                 <UploadFlyer
                   opportunityId={createdOpportunityId}
                   onUploadSuccess={() => {
+                    setFlyerUploaded(true)
                     setTimeout(() => router.push("/dashboard/company"), 1000)
                   }}
                   compact={true}
@@ -342,6 +394,8 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
         </Card>
       </div>
     )
+
+    
   }
 
   // Formulario normal

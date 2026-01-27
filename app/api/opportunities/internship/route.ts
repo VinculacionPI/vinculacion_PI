@@ -1,28 +1,24 @@
-// app/api/opportunities/internship/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteSupabase } from "@/lib/supabase/route";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
-  const cookie = (await cookies()).get("company_session");
+  const supabase = await createServerSupabase();
 
-  if (!cookie) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  let session;
-  try {
-    session = JSON.parse(cookie.value);
-  } catch {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const role = user.user_metadata?.role;
+  if (role !== 'company') {
+    return NextResponse.json({ error: "Solo empresas pueden crear pasantías" }, { status: 403 });
   }
 
-  const companyId = session.company_id;
+  const companyId = user.user_metadata?.company_id;
   if (!companyId) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    return NextResponse.json({ error: "No se encontró company_id" }, { status: 401 });
   }
-
-  const { supabase } = createRouteSupabase(req);
 
   let body;
   try {
@@ -57,7 +53,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.rpc("createupdateinternship", {
       i_id: i_id ?? null,
       i_title,
-      i_type, // SOLO se usa en CREATE (SP ya lo respeta)
+      i_type,
       i_description,
       i_mode,
       i_area,
