@@ -280,8 +280,6 @@ export default function CompanyDashboardPage() {
               Nueva Oportunidad
             </Button>
           </Link>
-
-          <CompanyMenu />
         </div>
       </div>
 
@@ -584,17 +582,6 @@ function OpportunitiesList({
 
     setIsDeleting(true)
     try {
-      // Primero cambiar estado a CANCELED
-      await fetch("/api/opportunities/lifecycle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          opportunity_id: selectedOpp.id,
-          lifecycle_status: "CANCELED",
-        }),
-      })
-
       // Luego eliminar
       const res = await fetch("/api/opportunities/delete", {
         method: "POST",
@@ -725,6 +712,12 @@ function OpportunitiesList({
                       Editar
                     </Button>
                   </Link>
+
+                  <LifecycleSelect
+                    value={opp.lifecycle_status}
+                    opportunityId={opp.id}
+                    onStatusChange={handleStatusChange}
+                  />
 
                   <Button
                     variant="destructive"
