@@ -2,31 +2,45 @@ import type { ReactNode } from "react"
 import { DashboardHeader } from "@/components/shared/dashboard-header"
 import { createServerSupabase } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
 
 export default async function CompanyDashboardLayout({ children }: { children: ReactNode }) {
-
-  const cookieStore = await cookies()
-  const session = cookieStore.get("company_session")
+  const supabase = await createServerSupabase()
   
-  if (!session) {
+  const { data: { user }, error } = await supabase.auth.getUser()
+  
+  console.log('🔍 Company Layout - User:', user?.email)
+  console.log('🔍 Company Layout - Error:', error)
+  console.log('🔍 Company Layout - Role:', user?.user_metadata?.role)
+  
+  if (error || !user) {
+    console.log('❌ No user, redirecting to login')
     redirect("/login")
   }
 
-  const company = JSON.parse(session.value)
-
-  if (company.role !== "company") {
-    redirect("/not-authorized")
+  // Verificar que sea empresa
+  const role = user.user_metadata?.role
+  if (role !== "company") {
+    console.log('❌ Not company role, redirecting to login')
+    redirect("/login")
   }
+
+  // Obtener nombre de la empresa
+  const { data: company } = await supabase
+    .from('COMPANY')
+    .select('name')
+    .eq('id', user.user_metadata?.company_id)
+    .single()
+
+  console.log('✅ Company loaded:', company?.name)
 
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader
-        userName={company.name}
+        userName={company?.name || user.email || 'Empresa'}
         userRole="company"
+        userId={user.id}
       />
       {children}
     </div>
   )
 }
-

@@ -126,17 +126,32 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       <div className="container mx-auto px-4 py-8">
         {user ? (
           <Link href={`/dashboard/${user.user_metadata?.role || 'student'}`}>
-            <Button variant="ghost" className="mb-6">
+            <Button 
+              variant="ghost" 
+              className="mb-6"
+              onClick={() => {
+                const urlParams = new URLSearchParams(window.location.search)
+                const from = urlParams.get('from')
+                
+                if (from === 'company-dashboard') {
+                  window.location.href = '/dashboard/company'
+                } else if (user?.user_metadata?.role === 'company') {
+                  window.location.href = '/dashboard/company'
+                } else if (user?.user_metadata?.role === 'student') {
+                  window.location.href = '/dashboard/student'
+                } else if (user?.user_metadata?.role === 'graduate') {
+                  window.location.href = '/dashboard/graduate'
+                } else {
+                  window.location.href = '/opportunities'
+                }
+              }}
+              disabled={!user}
+            >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Volver al Dashboard
+              Volver
             </Button>
           </Link>
-        ) : (
-          <Button variant="ghost" className="mb-6" disabled>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Cargando...
-          </Button>
-        )}
+        ) : null}
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">

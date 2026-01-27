@@ -428,7 +428,7 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
               <SelectTrigger id="mode">
                 <SelectValue placeholder="Selecciona modalidad" />
               </SelectTrigger>
-              <SelectContent position="popper" sideOffset={5} className="z-50">
+              <SelectContent position="popper" sideOffset={5} className="bg-background border shadow-lg z-50">
                 <SelectItem value="presencial">Presencial</SelectItem>
                 <SelectItem value="virtual">Virtual</SelectItem>
                 <SelectItem value="hibrida">Híbrida</SelectItem>

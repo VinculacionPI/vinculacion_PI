@@ -5,10 +5,14 @@ import { supabase } from '@/lib/supabase'
  */
 export async function getCurrentCompanyId(): Promise<string | null> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+    
+    console.log('User session:', user?.email, user?.user_metadata)
     
     // Si tiene company_id en metadata, usarlo
     if (user?.user_metadata?.company_id) {
+      console.log('Company ID from metadata:', user.user_metadata.company_id)
       return user.user_metadata.company_id
     }
     
@@ -21,12 +25,13 @@ export async function getCurrentCompanyId(): Promise<string | null> {
         .single()
       
       if (company) {
+        console.log('Company ID from COMPANY table:', company.id)
         return company.id
       }
     }
     
     // FALLBACK
-    console.warn('Usuario no autenticado, usando empresa de prueba')
+    console.warn('Usando fallback company_id')
     return 'caa6a12e-b110-4616-b786-7f18fea2b443'
   } catch (error) {
     console.error('Error obteniendo company_id:', error)
@@ -51,8 +56,8 @@ export function getCompanyIdFromUrl(): string {
  */
 export async function getCurrentUser() {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.user || null
   } catch (error) {
     console.error('Error obteniendo usuario:', error)
     return null
@@ -72,8 +77,8 @@ export async function isAuthenticated(): Promise<boolean> {
  */
 export async function getCurrentUserRole(): Promise<'company' | 'student' | 'admin' | null> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user?.user_metadata?.role || null
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.user?.user_metadata?.role || null
   } catch (error) {
     console.error('Error obteniendo rol:', error)
     return null

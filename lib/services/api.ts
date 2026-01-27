@@ -57,12 +57,12 @@ export async function registrarVisualizacion(publicacionId: string): Promise<voi
       })
 
     if (error) {
-      console.error('[persona5] Error insertando visualización:', error)
+      console.error('Error insertando visualización:', error)
     } else {
-      console.log('[persona5] ✅ Visualización registrada:', publicacionId)
+      console.log('Visualización registrada:', publicacionId)
     }
   } catch (error) {
-    console.error('[persona5] Exception:', error)
+    console.error('Exception:', error)
   }
 }
 
@@ -98,7 +98,7 @@ export async function obtenerOportunidad(id: string) {
     .single()
 
   if (error) {
-    console.error('[persona5] Error obteniendo oportunidad:', error)
+    console.error('Error obteniendo oportunidad:', error)
     throw error
   }
   
@@ -113,7 +113,7 @@ export async function obtenerOportunidadesEmpresa(empresaId: string) {
     .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('[persona5] Error obteniendo oportunidades de empresa:', error)
+    console.error('Error obteniendo oportunidades de empresa:', error)
     throw error
   }
   

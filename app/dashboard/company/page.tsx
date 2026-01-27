@@ -106,15 +106,18 @@ export default function CompanyDashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const res = await fetch(`/api/company/dashboard/metrics`, {
-        method: 'GET',
-        credentials: 'include'
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setDashboardData(data)
+      const empresaId = await getCurrentCompanyId()
+      
+      // Llamar a la Edge Function correcta
+      const { obtenerDashboardEmpresa } = await import('@/lib/services/api')
+      const data = await obtenerDashboardEmpresa(empresaId, 30)
+      
+      console.log('Dashboard data recibida:', data)
+      
+      if (data.success) {
+        setDashboardData(data.data)
       } else {
-        console.error('Error cargando dashboard:', data.message)
+        console.error('Error cargando dashboard:', data)
       }
     } catch (err) {
       console.error('Error cargando dashboard:', err)
@@ -360,7 +363,7 @@ export default function CompanyDashboardPage() {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="bg-background border shadow-lg z-50">
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="TFG">Proyecto</SelectItem>
                   <SelectItem value="INTERNSHIP">Pasantía</SelectItem>
@@ -375,7 +378,7 @@ export default function CompanyDashboardPage() {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="bg-background border shadow-lg z-50">
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="OPEN">Activos</SelectItem>
                   <SelectItem value="CLOSED">Inactivos</SelectItem>
@@ -407,7 +410,7 @@ export default function CompanyDashboardPage() {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="bg-background border shadow-lg z-50">
                   <SelectItem value="all">Todas</SelectItem>
                   <SelectItem value="PENDING">Pendientes</SelectItem>
                   <SelectItem value="APPROVED">Aprobadas</SelectItem>
@@ -578,6 +581,18 @@ function OpportunitiesList({
 
     setIsDeleting(true)
     try {
+      // Primero cambiar estado a CANCELED
+      await fetch("/api/opportunities/lifecycle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          opportunity_id: selectedOpp.id,
+          lifecycle_status: "CANCELED",
+        }),
+      })
+
+      // Luego eliminar
       const res = await fetch("/api/opportunities/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -695,7 +710,7 @@ function OpportunitiesList({
                     Ver Interesados
                   </Button>
 
-                  <Link href={`/opportunities/${opp.id}`} target="_blank">
+                  <Link href={`/opportunities/${opp.id}`}>
                     <Button variant="outline" size="sm">
                       <Eye className="h-4 w-4 mr-1" />
                       Ver Público
@@ -715,12 +730,6 @@ function OpportunitiesList({
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
-
-                  <LifecycleSelect
-                    value={opp.lifecycle_status}
-                    opportunityId={opp.id}
-                    onStatusChange={handleStatusChange}
-                  />
                 </div>
               </div>
             </CardContent>

@@ -27,18 +27,34 @@ interface DashboardStatsProps {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
 
 export function DashboardStats({ data }: DashboardStatsProps) {
+  // Validación de datos
+  if (!data || !data.metricas_generales) {
+    return (
+      <Card>
+        <CardContent className="py-16 text-center">
+          <p className="text-muted-foreground">No hay datos disponibles</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Valores seguros con fallbacks
+  const evolucionTemporal = data.evolucion_temporal || []
+  const distribucionCarrera = data.distribucion_carrera || []
+  const topPublicaciones = data.top_publicaciones || []
+
   return (
     <div className="space-y-6">
       {/* Gráfico de Evolución Temporal */}
       <Card>
         <CardHeader>
-          <CardTitle> Evolución de Intereses</CardTitle>
+          <CardTitle>Evolución de Intereses</CardTitle>
           <CardDescription>Últimos 30 días</CardDescription>
         </CardHeader>
         <CardContent>
-          {data.evolucion_temporal.length > 0 ? (
+          {evolucionTemporal.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.evolucion_temporal}>
+              <LineChart data={evolucionTemporal}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="fecha" 
@@ -67,15 +83,15 @@ export function DashboardStats({ data }: DashboardStatsProps) {
       {/* Gráfico de Distribución por Carrera */}
       <Card>
         <CardHeader>
-          <CardTitle> Distribución por Carrera</CardTitle>
+          <CardTitle>Distribución por Carrera</CardTitle>
           <CardDescription>Interesados según su carrera</CardDescription>
         </CardHeader>
         <CardContent>
-          {data.distribucion_carrera.length > 0 ? (
+          {distribucionCarrera.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={data.distribucion_carrera}
+                  data={distribucionCarrera}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -84,7 +100,7 @@ export function DashboardStats({ data }: DashboardStatsProps) {
                   fill="#8884d8"
                   dataKey="cantidad"
                 >
-                  {data.distribucion_carrera.map((entry, index) => (
+                  {distribucionCarrera.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -100,21 +116,21 @@ export function DashboardStats({ data }: DashboardStatsProps) {
       {/* Top Publicaciones */}
       <Card>
         <CardHeader>
-          <CardTitle> Top Publicaciones</CardTitle>
+          <CardTitle>Top Publicaciones</CardTitle>
           <CardDescription>Las más populares</CardDescription>
         </CardHeader>
         <CardContent>
-          {data.top_publicaciones.length > 0 ? (
+          {topPublicaciones.length > 0 ? (
             <div className="space-y-4">
-              {data.top_publicaciones.map((pub, index) => (
+              {topPublicaciones.map((pub, index) => (
                 <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <p className="font-medium">{pub.titulo}</p>
                     <p className="text-sm text-muted-foreground">{pub.tipo}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm"> {pub.total_intereses} intereses</p>
-                    <p className="text-sm text-muted-foreground"> {pub.total_visualizaciones} vistas</p>
+                    <p className="text-sm">👥 {pub.total_intereses} intereses</p>
+                    <p className="text-sm text-muted-foreground">{pub.total_visualizaciones} vistas</p>
                   </div>
                 </div>
               ))}

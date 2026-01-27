@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Briefcase, LogOut, User } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,9 +18,10 @@ import { useRouter } from "next/navigation"
 interface DashboardHeaderProps {
   userName?: string
   userRole?: string
+  userId?: string
 }
 
-export function DashboardHeader({ userName = "Usuario", userRole = "Estudiante" }: DashboardHeaderProps) {
+export function DashboardHeader({ userName, userRole, userId }: DashboardHeaderProps) {
   const router = useRouter()
 
   const handleLogout = async () => {
@@ -47,9 +49,36 @@ export function DashboardHeader({ userName = "Usuario", userRole = "Estudiante" 
         <div className="flex items-center gap-4">
           <NotificationBell />
           
-          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                <Avatar>
+                  <AvatarFallback>
+                    {userName?.charAt(0).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 bg-background" align="end">
+              <DropdownMenuLabel>
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium">{userName || 'Usuario'}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{userRole || 'role'}</p>
                 </div>
-              </div>
-            </header>
-          )
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push(`/dashboard/${userRole}/profile`)}>
+                <User className="mr-2 h-4 w-4" />
+                Perfil
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Cerrar Sesión
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
+  )
 }

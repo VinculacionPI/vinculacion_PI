@@ -1,23 +1,26 @@
 import { NextResponse, NextRequest } from "next/server"
-import { cookies } from "next/headers"
 import { createRouteSupabase } from "@/lib/supabase/route"
 
 export async function GET(req: NextRequest) {
-  const cookie = (await cookies()).get("company_session")
+  const { supabase } = createRouteSupabase(req)
 
-  if (!cookie) return NextResponse.json({ opportunities: [] }, { status: 401 })
+  // Obtener usuario autenticado
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  let session
-  try {
-    session = JSON.parse(cookie.value)
-  } catch {
+  if (authError || !user) {
     return NextResponse.json({ opportunities: [] }, { status: 401 })
   }
 
-  const companyId = session.company_id
-  if (!companyId) return NextResponse.json({ opportunities: [] }, { status: 401 })
+  // Verificar que sea empresa
+  const role = user.user_metadata?.role
+  if (role !== 'company') {
+    return NextResponse.json({ opportunities: [] }, { status: 403 })
+  }
 
-  const { supabase } = createRouteSupabase(req)
+  const companyId = user.user_metadata?.company_id
+  if (!companyId) {
+    return NextResponse.json({ opportunities: [] }, { status: 401 })
+  }
 
   const { data, error } = await supabase.rpc("getcompanyopportunities", {
     p_company_id: companyId,
@@ -28,5 +31,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-    return NextResponse.json({ opportunities: data ?? [] })
+  return NextResponse.json({ opportunities: data ?? [] })
 }

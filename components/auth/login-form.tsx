@@ -26,10 +26,7 @@ export function LoginForm() {
     console.log("📝 Intentando login como:", loginType);
     console.log("📧 Email:", email);
 
-    const endpoint =
-      loginType === "company"
-        ? "/api/auth/company-login"
-        : "/api/auth/login"
+  const endpoint = '/api/auth/login'
 
     try {
       console.log("🔗 Llamando a endpoint:", endpoint);
@@ -53,11 +50,15 @@ export function LoginForm() {
 
       console.log("✅ Login exitoso");
       console.log("📊 Data recibida:", data);
+      console.log("🔍 loginType:", loginType);
+      console.log("🔍 data.role:", data.role);
 
       // redirects separados
       if (loginType === "company") {
         console.log("🔄 Redirigiendo a dashboard company");
+        await new Promise(resolve => setTimeout(resolve, 100)) // Pequeña espera
         router.push("/dashboard/company")
+        router.refresh() // Forzar refresh
       } else {
         const roleRoutes: Record<string, string> = {
           student: "/dashboard/student",
@@ -67,7 +68,9 @@ export function LoginForm() {
 
         const route = roleRoutes[data.role] || "/dashboard/student"
         console.log("🔄 Redirigiendo a:", route);
+        await new Promise(resolve => setTimeout(resolve, 100))
         router.push(route)
+        router.refresh()
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error desconocido"

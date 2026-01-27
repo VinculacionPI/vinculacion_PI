@@ -8,34 +8,29 @@ import { Briefcase, Loader2 } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
-  const [isChecking, setIsChecking] = useState(true)
+  const [isChecking, setIsChecking] = useState(false) 
 
-  useEffect(() => {
-    // Check if user is already authenticated
+  /*useEffect(() => {
     const checkAuth = async () => {
       try {
         const response = await fetch("/api/profile")
         
         if (response.ok) {
           const data = await response.json()
-          // User is authenticated, redirect to their dashboard
           if (data.role) {
             router.push(`/dashboard/${data.role.toLowerCase()}`)
-            // Keep showing loader during redirect
             return
           }
         }
-        // If response is not ok (401), user is not authenticated
         setIsChecking(false)
       } catch (error) {
-        // If error, assume not authenticated
         console.error("Auth check error:", error)
         setIsChecking(false)
       }
     }
-
     checkAuth()
   }, [router])
+  */
 
   if (isChecking) {
     return (
