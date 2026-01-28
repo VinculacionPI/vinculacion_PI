@@ -430,11 +430,6 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
                 <Separator />
 
-                <Button variant="outline" className="w-full bg-transparent">
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  Guardar para después
-                </Button>
-
                 <FlyerButton 
                   opportunityId={id} 
                   currentFlyerUrl={opportunity.flyer_url}

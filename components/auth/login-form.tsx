@@ -23,13 +23,12 @@ export function LoginForm() {
     setIsLoading(true)
     setError("")
 
-    console.log("📝 Intentando login como:", loginType);
-    console.log("📧 Email:", email);
-
-  const endpoint = '/api/auth/login'
+    // 👇 CAMBIO AQUÍ: Usar endpoint diferente según el tipo
+    const endpoint = loginType === 'company' 
+      ? '/api/auth/company-login' 
+      : '/api/auth/login'
 
     try {
-      console.log("🔗 Llamando a endpoint:", endpoint);
       
       const response = await fetch(endpoint, {
         method: "POST",
@@ -37,26 +36,15 @@ export function LoginForm() {
         body: JSON.stringify({ email, password }),
       })
 
-      console.log("📊 Response status:", response.status);
-      console.log("📊 Response statusText:", response.statusText);
-
       const data = await response.json()
-      console.log("📊 Response data:", data);
 
       if (!response.ok) {
-        console.error("❌ Login failed:", data);
         throw new Error(data.message || "Error al iniciar sesión")
       }
 
-      console.log("✅ Login exitoso");
-      console.log("📊 Data recibida:", data);
-      console.log("🔍 loginType:", loginType);
-      console.log("🔍 data.role:", data.role);
-
       // redirects separados
       if (loginType === "company") {
-        console.log("🔄 Redirigiendo a dashboard company");
-        await new Promise(resolve => setTimeout(resolve, 100)) // Pequeña espera
+        await new Promise(resolve => setTimeout(resolve, 100))
         router.push("/dashboard/company")
         router.refresh() // Forzar refresh
       } else {
@@ -67,14 +55,12 @@ export function LoginForm() {
         }
 
         const route = roleRoutes[data.role] || "/dashboard/student"
-        console.log("🔄 Redirigiendo a:", route);
         await new Promise(resolve => setTimeout(resolve, 100))
         router.push(route)
         router.refresh()
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error desconocido"
-      console.error("❌ Error:", errorMessage);
       setError(errorMessage)
     } finally {
       setIsLoading(false)

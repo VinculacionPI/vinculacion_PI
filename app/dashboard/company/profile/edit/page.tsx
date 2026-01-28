@@ -75,7 +75,7 @@ export default function EditCompanyProfilePage() {
 
         try {
             const res = await fetch("/api/company/delete", {
-            method: "POST",
+            method: "DELETE",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({ company_id: company.id }),

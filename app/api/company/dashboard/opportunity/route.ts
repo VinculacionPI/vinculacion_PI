@@ -1,26 +1,30 @@
 import { NextResponse, NextRequest } from "next/server"
-import { createRouteSupabase } from "@/lib/supabase/route"
+import { createServerSupabase } from "@/lib/supabase/server"
 
 export async function GET(req: NextRequest) {
-  const { supabase } = createRouteSupabase(req)
+  const supabase = await createServerSupabase()
 
-  // Obtener usuario autenticado
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-  if (authError || !user) {
-    return NextResponse.json({ opportunities: [] }, { status: 401 })
+  // 1. Obtener usuario logueado desde Supabase
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  // Verificar que sea empresa
-  const role = user.user_metadata?.role
-  if (role !== 'company') {
-    return NextResponse.json({ opportunities: [] }, { status: 403 })
+  // 2. Verificar que sea una empresa y obtener company_id
+  // El company_id ES el mismo que el user.id en tu arquitectura
+  const { data: companyData, error: companyError } = await supabase
+    .from("COMPANY")
+    .select("id, approval_status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!companyData) {
+    return NextResponse.json({ 
+      error: "No autorizado." 
+    }, { status: 403 });
   }
 
-  const companyId = user.user_metadata?.company_id
-  if (!companyId) {
-    return NextResponse.json({ opportunities: [] }, { status: 401 })
-  }
+  const companyId = companyData.id
 
   const { data, error } = await supabase.rpc("getcompanyopportunities", {
     p_company_id: companyId,

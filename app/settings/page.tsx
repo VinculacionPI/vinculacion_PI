@@ -140,11 +140,11 @@ export default function SettingsPage() {
                 <Switch
                   id="email-enabled"
                   checked={preferences.email_enabled}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked: boolean) => 
                     setPreferences({ ...preferences, email_enabled: checked })
                   }
                 />
-              </div>
+              </div>  
 
               <Separator />
 
@@ -160,7 +160,7 @@ export default function SettingsPage() {
                 <Switch
                   id="push-enabled"
                   checked={preferences.push_enabled}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked: boolean) => 
                     setPreferences({ ...preferences, push_enabled: checked })
                   }
                 />
@@ -192,7 +192,7 @@ export default function SettingsPage() {
                 <Switch
                   id="nuevo-interes"
                   checked={preferences.nuevo_interes}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked: boolean) => 
                     setPreferences({ ...preferences, nuevo_interes: checked })
                   }
                   disabled={!preferences.push_enabled && !preferences.email_enabled}
@@ -216,7 +216,7 @@ export default function SettingsPage() {
                 <Switch
                   id="cambio-estado"
                   checked={preferences.cambio_estado}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked: boolean) => 
                     setPreferences({ ...preferences, cambio_estado: checked })
                   }
                   disabled={!preferences.push_enabled && !preferences.email_enabled}
@@ -240,7 +240,7 @@ export default function SettingsPage() {
                 <Switch
                   id="nueva-publicacion"
                   checked={preferences.nueva_publicacion}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked: boolean) => 
                     setPreferences({ ...preferences, nueva_publicacion: checked })
                   }
                   disabled={!preferences.push_enabled && !preferences.email_enabled}
@@ -264,7 +264,7 @@ export default function SettingsPage() {
                 <Switch
                   id="recordatorio"
                   checked={preferences.recordatorio}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked: boolean) => 
                     setPreferences({ ...preferences, recordatorio: checked })
                   }
                   disabled={!preferences.push_enabled && !preferences.email_enabled}

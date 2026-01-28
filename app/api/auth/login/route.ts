@@ -76,7 +76,6 @@ export async function POST(req: NextRequest) {
 
   // Block login if status is not active
   if (userData.status.toLowerCase() !== "active") {
-    console.log("Login blocked - User status:", userData.status)
     
     let statusMessage = "Tu cuenta no está activa"
     if (userData.status.toLowerCase() === "pending") {
@@ -97,13 +96,6 @@ export async function POST(req: NextRequest) {
       { status: 403 }
     )
   }
-
-  console.log("Login exitoso:", {
-    email: data.user.email,
-    role,
-    company_id,
-    status: userData.status,
-  })
 
   const out = NextResponse.json(
     {

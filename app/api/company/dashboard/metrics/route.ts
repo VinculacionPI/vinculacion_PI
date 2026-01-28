@@ -4,17 +4,27 @@ import { createServerSupabase } from "@/lib/supabase/server"
 export async function GET(req: NextRequest) {
   const supabase = await createServerSupabase()
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-  console.log('🔍 Metrics API - User:', user?.email)
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
+  // 1. Obtener usuario logueado desde Supabase
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const companyId = user.user_metadata?.company_id
+  // 2. Verificar que sea una empresa y obtener company_id
+  // El company_id ES el mismo que el user.id en tu arquitectura
+  const { data: companyData, error: companyError } = await supabase
+    .from("COMPANY")
+    .select("id, approval_status")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  console.log('✅ Calling RPC with company_id:', companyId)
+  if (!companyData) {
+    return NextResponse.json({ 
+      error: "No autorizado." 
+    }, { status: 403 });
+  }
+
+  const companyId = companyData.id
 
   const { data, error } = await supabase.rpc('get_dashboard_empresa', {
     p_empresa_id: companyId,
@@ -22,11 +32,8 @@ export async function GET(req: NextRequest) {
   })
 
   if (error) {
-    console.error('❌ RPC error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  console.log('✅ Dashboard data:', data)
 
   return NextResponse.json({
     success: true,

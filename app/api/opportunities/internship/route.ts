@@ -7,14 +7,37 @@ export async function POST(req: NextRequest) {
 
   // Obtener usuario logueado desde Supabase
   const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
   if (userError || !user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const companyId = user.user_metadata?.company_id;
-  if (!companyId) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  // 2. Verificar que sea una empresa y obtener company_id
+  // El company_id ES el mismo que el user.id en tu arquitectura
+  const { data: companyData, error: companyError } = await supabase
+    .from("COMPANY")
+    .select("id, approval_status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (companyError) {
+    console.error("Error verificando empresa:", companyError);
+    return NextResponse.json({ error: "Error al verificar empresa" }, { status: 500 });
   }
+
+  if (!companyData) {
+    return NextResponse.json({ 
+      error: "No autorizado. Solo las empresas pueden crear pasantías." 
+    }, { status: 403 });
+  }
+
+  if (companyData.approval_status.toLowerCase() !== "aprobada") {
+    return NextResponse.json({ 
+      error: "Tu empresa debe estar aprobada para crear pasantías" 
+    }, { status: 403 });
+  }
+
+  const companyId = companyData.id;
 
   // Leer body
   let body;
@@ -59,7 +82,7 @@ export async function POST(req: NextRequest) {
       i_duration,
       i_schedule,
       i_remuneration: remunerationValue,
-      i_company_id: companyId, // ← toma la compañía del usuario logueado
+      i_company_id: companyId,
       i_flyer_url: i_flyer_url ?? null,
     });
 

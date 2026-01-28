@@ -2,24 +2,41 @@ import { NextResponse, NextRequest } from "next/server"
 import { createRouteSupabase } from "@/lib/supabase/route"
 
 export async function GET(req: NextRequest) {
-  const { supabase } = createRouteSupabase(req)
+  const { supabase } = createRouteSupabase(req);
 
-  // Obtener la sesión actual de Supabase Auth
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-  if (sessionError || !session) {
-    return NextResponse.json({ company: null }, { status: 401 })
+  // Obtener usuario logueado desde Supabase
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  // Obtener company_id del user metadata
-  const companyId = session.user.user_metadata?.company_id
+  // 2. Verificar que sea una empresa y obtener company_id
+  // El company_id ES el mismo que el user.id en tu arquitectura
+  const { data: companyData, error: companyError } = await supabase
+    .from("COMPANY")
+    .select("id, approval_status")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  if (!companyId) {
+  if (companyError) {
+    console.error("Error verificando empresa:", companyError);
+    return NextResponse.json({ error: "Error al verificar empresa" }, { status: 500 });
+  }
+
+  if (!companyData) {
     return NextResponse.json({ 
-      company: null,
-      message: "Usuario no tiene una empresa asociada" 
-    }, { status: 404 })
+      error: "No autorizado. Solo las empresas pueden crear pasantías." 
+    }, { status: 403 });
   }
+
+  if (companyData.approval_status.toLowerCase() !== "aprobada") {
+    return NextResponse.json({ 
+      error: "Tu empresa debe estar aprobada para crear pasantías" 
+    }, { status: 403 });
+  }
+
+  const companyId = companyData.id;
 
   // Obtener datos de la empresa
   const { data, error } = await supabase.rpc("get_company_by_id", {

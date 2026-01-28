@@ -27,7 +27,6 @@ type AdminStats = {
   totalUsers: number
   activeOpportunities: number
 
-  // 👇 lo agregamos después cuando hagamos la API real
   // pendingGraduations?: number
 }
 

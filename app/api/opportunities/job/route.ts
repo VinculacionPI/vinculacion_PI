@@ -5,18 +5,40 @@ import { createRouteSupabase } from "@/lib/supabase/route";
 export async function POST(req: NextRequest) {
   const { supabase } = createRouteSupabase(req);
 
-  // Obtener usuario logueado desde Supabase
+  // 1. Obtener usuario logueado desde Supabase
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const companyId = user.user_metadata?.company_id;
-  if (!companyId) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  // 2. Verificar que sea una empresa y obtener company_id
+  // El company_id ES el mismo que el user.id en tu arquitectura
+  const { data: companyData, error: companyError } = await supabase
+    .from("COMPANY")
+    .select("id, approval_status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (companyError) {
+    console.error("Error verificando empresa:", companyError);
+    return NextResponse.json({ error: "Error al verificar empresa" }, { status: 500 });
   }
 
-  // Leer body
+  if (!companyData) {
+    return NextResponse.json({ 
+      error: "No autorizado. Solo las empresas pueden crear empleos." 
+    }, { status: 403 });
+  }
+
+  if (companyData.approval_status.toLowerCase() !== "aprobada") {
+    return NextResponse.json({ 
+      error: "Tu empresa debe estar aprobada para crear oportunidades" 
+    }, { status: 403 });
+  }
+
+  const companyId = companyData.id;
+
+  // 3. Leer body
   let body;
   try {
     body = await req.json();
@@ -77,7 +99,7 @@ export async function POST(req: NextRequest) {
       j_salary_max: salaryMaxValue,
       j_benefits,
       j_estimated_start_date,
-      j_company_id: companyId, // ← toma la compañía del usuario logueado
+      j_company_id: companyId,
       j_flyer_url: j_flyer_url ?? null,
     });
 
@@ -85,6 +107,8 @@ export async function POST(req: NextRequest) {
       console.error("RPC createupdatejob error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    console.log("Empleo creado/actualizado exitosamente:", data);
 
     return NextResponse.json({
       success: true,
