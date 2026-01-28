@@ -40,7 +40,7 @@ export function DashboardHeader({ userName, userRole, userId }: DashboardHeaderP
         <Link href={homeLink} className="flex items-center gap-2">
           <Briefcase className="h-6 w-6 text-primary" />
           <div>
-            <h1 className="text-lg font-bold text-foreground">Vinculación Empresarial PI</h1>
+            <h1 className="text-lg font-bold text-foreground">Vinculación Empresarial EIPI</h1>
             <p className="text-xs text-muted-foreground hidden sm:block">Instituto Tecnológico de Costa Rica</p>
           </div>
         </Link>
