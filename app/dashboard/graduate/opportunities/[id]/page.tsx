@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Download, Bookmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { registrarVisualizacion } from "@/lib/services/api"
 
 type JobDetail = {
   contract_type: string | null
@@ -29,15 +30,14 @@ type OpportunityDetail = {
 
   created_at: string
   company: string | null
+
+  // ✅ viene de tu /api/opportunities/[id] como flyerUrl (derivado de OPPORTUNITY.flyer_url)
   flyerUrl: string | null
 
-  // ✅ importante para decidir layout
   type: string | null // "JOB" / "TFG" / "INTERNSHIP"
 
-  // ✅ campos extra JOB (si tu API los manda)
   job?: JobDetail | null
 
-  // (por si tu API manda planos en lugar de job{})
   contract_type?: string | null
   salary_min?: number | null
   salary_max?: number | null
@@ -56,6 +56,9 @@ export default function GraduateOpportunityDetailPage() {
   const [interested, setInterested] = useState(false)
   const [interestLoading, setInterestLoading] = useState(true)
 
+  // ✅ estado para el botón de flyer (descarga)
+  const [flyerBusy, setFlyerBusy] = useState(false)
+
   useEffect(() => {
     const load = async () => {
       if (!id) return
@@ -73,6 +76,7 @@ export default function GraduateOpportunityDetailPage() {
 
         const json = (await res.json()) as OpportunityDetail
         setData(json)
+        registrarVisualizacion(id).catch(err => console.log('Error registrando visualización:', err))
       } catch (e) {
         console.error("Error loading opportunity detail:", e)
         setData(null)
@@ -169,6 +173,30 @@ export default function GraduateOpportunityDetailPage() {
     }
   }
 
+  /**
+   * ✅ Descarga usando el endpoint server-side:
+   *    /api/opportunities/[id]/flyer/download
+   *
+   * IMPORTANTE:
+   * - NO dependemos de data.flyerUrl para habilitar el botón
+   * - El endpoint se encarga de responder 404 si no hay flyer_url
+   */
+  const downloadFlyerViaApi = async () => {
+    if (!id) return
+    if (flyerBusy) return
+
+    setFlyerBusy(true)
+    try {
+      const url = `/api/opportunities/${id}/flyer/download`
+      window.open(url, "_blank", "noopener,noreferrer")
+    } catch (e) {
+      console.error("Flyer download error:", e)
+      alert("No se pudo descargar el flyer.")
+    } finally {
+      setFlyerBusy(false)
+    }
+  }
+
   const job = data?.job ?? null
   const contractType = job?.contract_type ?? data?.contract_type ?? null
   const salaryMin = job?.salary_min ?? data?.salary_min ?? null
@@ -220,17 +248,19 @@ export default function GraduateOpportunityDetailPage() {
             <span className="sr-only">{interested ? "Retirar interés" : "Manifestar interés"}</span>
           </Button>
 
-          {data.flyerUrl ? (
-            <a
-              href={data.flyerUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-            >
-              <Download className="h-4 w-4" />
-              Descargar flyer
-            </a>
-          ) : null}
+          {/* ✅ Botón de descarga (siempre visible).
+              El server decide si existe flyer_url (302) o si no existe (404). */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={downloadFlyerViaApi}
+            disabled={flyerBusy}
+            className="gap-2"
+            title="Descargar flyer"
+          >
+            <Download className="h-4 w-4" />
+            {flyerBusy ? "Descargando..." : "Descargar flyer"}
+          </Button>
         </div>
       </div>
 
@@ -241,6 +271,9 @@ export default function GraduateOpportunityDetailPage() {
             Empresa: {data.company ?? "No especificada"} · Estado: {data.status ?? "—"}
             {data.lifecycle_status ? ` · Publicación: ${data.lifecycle_status}` : ""}
           </p>
+
+          {/* opcional para debug visual */}
+          {/* <p className="text-xs text-muted-foreground mt-2">flyerUrl: {data.flyerUrl ?? "null"}</p> */}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -257,9 +290,7 @@ export default function GraduateOpportunityDetailPage() {
           <div className="rounded-md border p-4">
             <p className="text-sm font-medium">Salario</p>
             <p className="text-sm text-muted-foreground mt-1">
-              {salaryMin != null || salaryMax != null
-                ? `${salaryMin ?? "—"} - ${salaryMax ?? "—"}`
-                : "No especificado"}
+              {salaryMin != null || salaryMax != null ? `${salaryMin ?? "—"} - ${salaryMax ?? "—"}` : "No especificado"}
             </p>
           </div>
 
@@ -276,23 +307,17 @@ export default function GraduateOpportunityDetailPage() {
 
         <div className="rounded-md border p-4">
           <p className="text-sm font-medium">Requisitos</p>
-          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
-            {data.requirements ?? "No especificados"}
-          </p>
+          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{data.requirements ?? "No especificados"}</p>
         </div>
 
         <div className="rounded-md border p-4">
           <p className="text-sm font-medium">Beneficios</p>
-          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
-            {benefits ?? "No especificados"}
-          </p>
+          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{benefits ?? "No especificados"}</p>
         </div>
 
         <div className="rounded-md border p-4">
           <p className="text-sm font-medium">Información de contacto</p>
-          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
-            {data.contact_info ?? "No especificada"}
-          </p>
+          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{data.contact_info ?? "No especificada"}</p>
         </div>
 
         {!canInteract ? (

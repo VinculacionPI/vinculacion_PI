@@ -7,32 +7,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Download, FileText, TrendingUp, Users, CheckCircle2, XCircle } from "lucide-react"
-import { generarInformeTFG } from "@/lib/services/api"
-import { supabase } from "@/lib/supabase"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from "recharts"
+import { Download, FileText, TrendingUp, CheckCircle2, XCircle } from "lucide-react"
+import { supabase } from "@/lib/supabase" // ajusta si tu path real es "@/lib/supabase/client"
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+} from "recharts"
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
-
-// Traducciones
-const translateStatus = (status: string): string => {
-  const translations: Record<string, string> = {
-    'OPEN': 'Abierto',
-    'CLOSED': 'Cerrado',
-    'ACTIVE': 'Activo',
-    'INACTIVE': 'Inactivo'
-  }
-  return translations[status] || status
-}
-
-const translateApprovalStatus = (status: string): string => {
-  const translations: Record<string, string> = {
-    'APPROVED': 'Aprobado',
-    'PENDING': 'Pendiente',
-    'REJECTED': 'Rechazado'
-  }
-  return translations[status] || status
-}
+// ======================
+// TIPOS (✅ evita "unknown")
+// ======================
 
 interface TFGData {
   id: string
@@ -55,29 +47,123 @@ interface ReportData {
   tfgs: TFGData[]
 }
 
+type GenerarInformeTFGInput = {
+  empresa_id?: string
+  tipo?: string
+}
+
+type GenerarInformeTFGResponse =
+  | { success: true; data: { contenido: string } }
+  | { success: false; error?: string }
+
+// ======================
+// API CLIENT (✅ tipado)
+// ======================
+async function generarInformeTFG(payload: GenerarInformeTFGInput): Promise<GenerarInformeTFGResponse> {
+  const res = await fetch("/api/informes/tfg", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+
+  let json: any = null
+  try {
+    json = await res.json()
+  } catch {
+    json = null
+  }
+
+  if (!res.ok) {
+    return { success: false, error: json?.error ?? "Error al generar el informe" }
+  }
+
+  if (json?.success) return { success: true, data: { contenido: String(json.data?.contenido ?? "") } }
+  return { success: false, error: json?.error ?? "Respuesta inválida del servidor" }
+}
+
+// ======================
+// Helpers
+// ======================
+
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"]
+
+const translateStatus = (status: string): string => {
+  const translations: Record<string, string> = {
+    OPEN: "Abierto",
+    CLOSED: "Cerrado",
+    ACTIVE: "Activo",
+    INACTIVE: "Inactivo",
+    ON_HOLD: "En pausa",
+  }
+  return translations[status] || status
+}
+
+const translateApprovalStatus = (status: string): string => {
+  const translations: Record<string, string> = {
+    APPROVED: "Aprobado",
+    PENDING: "Pendiente",
+    REJECTED: "Rechazado",
+  }
+  return translations[status] || status
+}
+
+// 🔥 Labels dinámicos según dropdown (all/tfg/pasantia/empleo)
+const tipoLabelUI = (tipo: string) => {
+  const t = (tipo ?? "").toUpperCase()
+  if (t === "TFG") return "TFG"
+  if (t === "PASANTIA") return "Pasantías"
+  if (t === "EMPLEO") return "Empleos"
+  if (t === "ALL") return "Oportunidades"
+  return tipo
+}
+
+const tipoTitleUI = (tipo: string) => {
+  if ((tipo ?? "").toUpperCase() === "ALL") return "Informes"
+  return `Informes de ${tipoLabelUI(tipo)}`
+}
+
+const tipoDescUI = (tipo: string) => {
+  const t = (tipo ?? "").toUpperCase()
+  if (t === "TFG") return "Genera reportes personalizados sobre proyectos de graduación"
+  if (t === "PASANTIA") return "Genera reportes personalizados sobre pasantías"
+  if (t === "EMPLEO") return "Genera reportes personalizados sobre empleos"
+  return "Genera reportes personalizados sobre oportunidades"
+}
+
+const chartsTitleStatus = (tipo: string) => {
+  const t = (tipo ?? "").toUpperCase()
+  if (t === "ALL") return "Estado de oportunidades"
+  return `Estado de ${tipoLabelUI(tipo)}`
+}
+
+const chartsTitleApproval = (tipo: string) => {
+  const t = (tipo ?? "").toUpperCase()
+  if (t === "ALL") return "Estado de aprobación (todas)"
+  return `Estado de aprobación (${tipoLabelUI(tipo)})`
+}
+
+// ======================
+// Page
+// ======================
+
 export default function InformesPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedEmpresa, setSelectedEmpresa] = useState("all")
   const [selectedTipo, setSelectedTipo] = useState("all")
-  const [empresas, setEmpresas] = useState<Array<{id: string, name: string}>>([])
+  const [empresas, setEmpresas] = useState<Array<{ id: string; name: string }>>([])
 
   useEffect(() => {
-    loadEmpresas()
+    void loadEmpresas()
   }, [])
 
   const loadEmpresas = async () => {
     try {
-      const { data, error } = await supabase
-        .from('COMPANY')
-        .select('id, name')
-        .order('name')
-      
-      if (data) {
-        setEmpresas(data)
-      }
+      const { data, error } = await supabase.from("COMPANY").select("id, name").order("name")
+      if (error) throw error
+      if (data) setEmpresas(data as Array<{ id: string; name: string }>)
     } catch (err) {
-      console.error('Error cargando empresas:', err)
+      console.error("Error cargando empresas:", err)
     }
   }
 
@@ -89,28 +175,27 @@ export default function InformesPage() {
         tipo: selectedTipo === "all" ? undefined : selectedTipo,
       })
 
-      console.log('Respuesta completa:', response)
+      if (response.success) {
+        const contenido = JSON.parse(response.data.contenido || "{}")
 
-      if (response.success && response.data) {
-        // Parsear el contenido JSON que viene como string
-        const contenido = JSON.parse(response.data.contenido)
-        
-        // Transformar al formato esperado
         const transformedData: ReportData = {
-          total_tfgs: contenido.estadisticas.total_tfgs || 0,
-          activos: contenido.estadisticas.activos || 0,
-          cerrados: contenido.estadisticas.cerrados || 0,
-          pendientes_aprobacion: contenido.estadisticas.pendientes_aprobacion || 0,
-          aprobados: contenido.estadisticas.aprobados || 0,
-          rechazados: contenido.estadisticas.rechazados || 0,
-          tfgs: contenido.tfgs || []
+          total_tfgs: contenido?.estadisticas?.total_tfgs ?? 0,
+          activos: contenido?.estadisticas?.activos ?? 0,
+          cerrados: contenido?.estadisticas?.cerrados ?? 0,
+          pendientes_aprobacion: contenido?.estadisticas?.pendientes_aprobacion ?? 0,
+          aprobados: contenido?.estadisticas?.aprobados ?? 0,
+          rechazados: contenido?.estadisticas?.rechazados ?? 0,
+          tfgs: (contenido?.tfgs ?? []) as TFGData[],
         }
 
-        console.log('Data transformada:', transformedData)
         setReportData(transformedData)
+      } else {
+        console.error("Error generando reporte:", response.error)
+        setReportData(null)
       }
     } catch (err) {
       console.error("Error generando reporte:", err)
+      setReportData(null)
     } finally {
       setIsLoading(false)
     }
@@ -145,23 +230,33 @@ export default function InformesPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `informe-tfg-${new Date().toISOString().split("T")[0]}.csv`
+      a.download = `informe-${selectedTipo === "all" ? "oportunidades" : selectedTipo.toLowerCase()}-${
+        new Date().toISOString().split("T")[0]
+      }.csv`
       a.click()
+      URL.revokeObjectURL(url)
     } else if (format === "JSON") {
       const json = JSON.stringify(dataToExport, null, 2)
       const blob = new Blob([json], { type: "application/json" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `informe-tfg-${new Date().toISOString().split("T")[0]}.json`
+      a.download = `informe-${selectedTipo === "all" ? "oportunidades" : selectedTipo.toLowerCase()}-${
+        new Date().toISOString().split("T")[0]
+      }.json`
       a.click()
+      URL.revokeObjectURL(url)
     } else if (format === "XLSX") {
-      // Importar xlsx dinámicamente
       import("xlsx").then((XLSX) => {
         const ws = XLSX.utils.json_to_sheet(dataToExport)
         const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws, "Informe TFG")
-        XLSX.writeFile(wb, `informe-tfg-${new Date().toISOString().split("T")[0]}.xlsx`)
+        XLSX.utils.book_append_sheet(wb, ws, "Informe")
+        XLSX.writeFile(
+          wb,
+          `informe-${selectedTipo === "all" ? "oportunidades" : selectedTipo.toLowerCase()}-${
+            new Date().toISOString().split("T")[0]
+          }.xlsx`
+        )
       })
     }
   }
@@ -185,8 +280,9 @@ export default function InformesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Informes de TFG</h1>
-        <p className="text-muted-foreground">Genera reportes personalizados sobre proyectos de graduación</p>
+        {/* ✅ Título y descripción dinámicos */}
+        <h1 className="text-3xl font-bold text-foreground mb-2">{tipoTitleUI(selectedTipo)}</h1>
+        <p className="text-muted-foreground">{tipoDescUI(selectedTipo)}</p>
       </div>
 
       {/* Filters */}
@@ -221,7 +317,7 @@ export default function InformesPage() {
                   <SelectValue placeholder="Todos los tipos" />
                 </SelectTrigger>
                 <SelectContent className="bg-background border shadow-lg z-50">
-                  <SelectItem value="all">Todos los tipos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="TFG">TFG</SelectItem>
                   <SelectItem value="PASANTIA">Pasantía</SelectItem>
                   <SelectItem value="EMPLEO">Empleo</SelectItem>
@@ -245,7 +341,8 @@ export default function InformesPage() {
           <div className="grid gap-4 md:grid-cols-4 mb-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total TFGs</CardTitle>
+                {/* ✅ Total dinámico */}
+                <CardTitle className="text-sm font-medium">Total {tipoLabelUI(selectedTipo)}</CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -288,7 +385,7 @@ export default function InformesPage() {
           <Tabs defaultValue="list" className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <TabsList>
-                <TabsTrigger value="list">Lista de TFGs</TabsTrigger>
+                <TabsTrigger value="list">Lista</TabsTrigger>
                 <TabsTrigger value="charts">Gráficas</TabsTrigger>
               </TabsList>
 
@@ -311,7 +408,10 @@ export default function InformesPage() {
             <TabsContent value="list">
               <Card>
                 <CardHeader>
-                  <CardTitle>Listado de TFGs ({reportData.tfgs?.length || 0})</CardTitle>
+                  {/* ✅ Listado dinámico */}
+                  <CardTitle>
+                    Listado de {tipoLabelUI(selectedTipo)} ({reportData.tfgs?.length || 0})
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -323,11 +423,18 @@ export default function InformesPage() {
                           <p className="text-xs text-muted-foreground mt-1">
                             {new Date(tfg.created_at).toLocaleDateString("es-CR")}
                           </p>
+
+                          {/* Opcional: mostrar tipo si estás en ALL */}
+                          {selectedTipo === "all" && (
+                            <p className="text-xs text-muted-foreground mt-1">Tipo: {tfg.type}</p>
+                          )}
                         </div>
+
                         <div className="flex gap-2">
                           <Badge variant={tfg.status === "OPEN" ? "default" : "secondary"}>
                             {translateStatus(tfg.status)}
                           </Badge>
+
                           <Badge
                             variant={
                               tfg.approval_status === "APPROVED"
@@ -351,7 +458,8 @@ export default function InformesPage() {
               <div className="grid gap-6 md:grid-cols-2">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Estado de TFGs</CardTitle>
+                    {/* ✅ Título dinámico */}
+                    <CardTitle>{chartsTitleStatus(selectedTipo)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -372,7 +480,8 @@ export default function InformesPage() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Estado de Aprobación</CardTitle>
+                    {/* ✅ Título dinámico */}
+                    <CardTitle>{chartsTitleApproval(selectedTipo)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>

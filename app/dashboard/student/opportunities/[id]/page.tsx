@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Download, Bookmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { registrarVisualizacion } from "@/lib/services/api"
 
 type OpportunityDetail = {
   id: string
@@ -24,6 +25,8 @@ type OpportunityDetail = {
 
   created_at: string
   company: string | null
+
+  // ✅ viene de tu /api/opportunities/[id] como flyerUrl (derivado de OPPORTUNITY.flyer_url)
   flyerUrl: string | null
 }
 
@@ -44,6 +47,9 @@ export default function OpportunityDetailPage() {
   const [interested, setInterested] = useState(false)
   const [interestLoading, setInterestLoading] = useState(true)
 
+  // ✅ estado para el botón de flyer (descarga)
+  const [flyerBusy, setFlyerBusy] = useState(false)
+
   useEffect(() => {
     const load = async () => {
       if (!id) return
@@ -61,6 +67,8 @@ export default function OpportunityDetailPage() {
 
         const json = (await res.json()) as OpportunityDetail
         setData(json)
+
+        registrarVisualizacion(id).catch(err => console.log('Error registrando visualización:', err))
       } catch (e) {
         console.error("Error loading opportunity detail:", e)
         setData(null)
@@ -157,6 +165,29 @@ export default function OpportunityDetailPage() {
     }
   }
 
+  /**
+   * ✅ Descarga usando el endpoint server-side:
+   *    /api/opportunities/[id]/flyer/download
+   *
+   * Igual que en graduate: evitamos JWT inválido / edge functions.
+   * El endpoint (server) lee OPPORTUNITY.flyer_url y redirige (302).
+   */
+  const downloadFlyerViaApi = async () => {
+    if (!id) return
+    if (flyerBusy) return
+
+    setFlyerBusy(true)
+    try {
+      const url = `/api/opportunities/${id}/flyer/download`
+      window.open(url, "_blank", "noopener,noreferrer")
+    } catch (e) {
+      console.error("Flyer download error:", e)
+      alert("No se pudo descargar el flyer.")
+    } finally {
+      setFlyerBusy(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -203,17 +234,20 @@ export default function OpportunityDetailPage() {
             <span className="sr-only">{interested ? "Retirar interés" : "Manifestar interés"}</span>
           </Button>
 
-          {data.flyerUrl ? (
-            <a
-              href={data.flyerUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-            >
-              <Download className="h-4 w-4" />
-              Descargar flyer
-            </a>
-          ) : null}
+          {/* ✅ Botón de descarga (siempre visible)
+              - el server responde 302 si existe flyer_url
+              - o 404 si no existe */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={downloadFlyerViaApi}
+            disabled={flyerBusy}
+            className="gap-2"
+            title="Descargar flyer"
+          >
+            <Download className="h-4 w-4" />
+            {flyerBusy ? "Descargando..." : "Descargar flyer"}
+          </Button>
         </div>
       </div>
 
@@ -224,6 +258,9 @@ export default function OpportunityDetailPage() {
             Empresa: {data.company ?? "No especificada"} · Estado: {data.status ?? "—"}
             {data.lifecycle_status ? ` · Publicación: ${data.lifecycle_status}` : ""}
           </p>
+
+          {/* opcional para debug */}
+          {/* <p className="text-xs text-muted-foreground mt-2">flyerUrl: {data.flyerUrl ?? "null"}</p> */}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -234,9 +271,7 @@ export default function OpportunityDetailPage() {
 
           <div className="rounded-md border p-4">
             <p className="text-sm font-medium">Duración estimada</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {data.duration_estimated ? data.duration_estimated : "No especificada"}
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">{data.duration_estimated ? data.duration_estimated : "No especificada"}</p>
           </div>
 
           <div className="rounded-md border p-4">
@@ -246,9 +281,7 @@ export default function OpportunityDetailPage() {
 
           <div className="rounded-md border p-4">
             <p className="text-sm font-medium">Remuneración</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {data.remuneration != null ? String(data.remuneration) : "No especificada"}
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">{data.remuneration != null ? String(data.remuneration) : "No especificada"}</p>
           </div>
         </div>
 
@@ -259,16 +292,12 @@ export default function OpportunityDetailPage() {
 
         <div className="rounded-md border p-4">
           <p className="text-sm font-medium">Requisitos</p>
-          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
-            {data.requirements ?? "No especificados"}
-          </p>
+          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{data.requirements ?? "No especificados"}</p>
         </div>
 
         <div className="rounded-md border p-4">
           <p className="text-sm font-medium">Información de contacto</p>
-          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
-            {data.contact_info ?? "No especificada"}
-          </p>
+          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{data.contact_info ?? "No especificada"}</p>
         </div>
 
         {!canInteract ? (

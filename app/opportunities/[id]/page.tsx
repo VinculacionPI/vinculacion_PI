@@ -21,20 +21,50 @@ import {
   Calendar,
   CheckCircle2,
   ExternalLink,
+  TrendingUp,
+  GraduationCap,
 } from "lucide-react"
 import { getCurrentUser } from "@/lib/auth/get-current-user"
 
+interface OpportunityDetails {
+  id: string
+  title: string
+  company: string
+  companyLogo: string
+  location: string
+  type: 'internship' | 'graduation-project' | 'job'
+  status: string
+  description: string
+  requirements: string[]
+  postedAt: string
+  expiresAt: string
+  contactEmail: string
+  flyer_url: string | null
+  area?: string
+  duration?: string
+  viewCount?: number
+  // Datos específicos de JOB
+  contractType?: string
+  salaryMin?: number
+  salaryMax?: number
+  benefits?: string[]
+  estimatedStartDate?: string
+  // Datos específicos de TFG e INTERNSHIP
+  schedule?: string
+  remuneration?: number
+}
+
 export default function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const [opportunity, setOpportunity] = useState<any>(null)
+  const [opportunity, setOpportunity] = useState<OpportunityDetails | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
-  const [role, setRole] = useState<string>('student')
 
   useEffect(() => {
     async function loadOpportunity() {
       try {
-        const { data, error } = await supabase
+        // Primero obtenemos la oportunidad base
+        const { data: oppData, error: oppError } = await supabase
           .from('OPPORTUNITY')
           .select(`
             *,
@@ -48,35 +78,89 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           .eq('id', id)
           .single()
         
-        if (error || !data) {
-          console.error('Error obteniendo oportunidad:', error)
+        if (oppError || !oppData) {
+          console.error('Error obteniendo oportunidad:', oppError)
           setOpportunity(null)
           return
         }
+
+        // Determinamos el tipo de oportunidad
+        const oppType = oppData.type?.toUpperCase()
         
-        setOpportunity({
-                  id: data.id,
-                  title: data.title,
-                  company: data.COMPANY?.name || 'Empresa',
-                  companyLogo: data.COMPANY?.logo_path || '/generic-company-logo.png',
-                  location: data.mode || 'No especificado',
-                  type: data.type === 'TFG' ? 'graduation-project' : 
-                        data.type === 'PASANTIA' ? 'internship' : 'job',
-                  status: data.status === 'OPEN' ? 'active' : 'inactive',
-                  description: data.description || 'Sin descripción',
-                  requirements: data.requirements?.split('\n').filter(Boolean) || [],
-                  responsibilities: [],
-                  benefits: [],
-                  salary: null,
-                  postedAt: new Date(data.created_at).toLocaleDateString('es-CR'),
-                  expiresAt: 'No especificado',
-                  contactEmail: data.contact_info || data.COMPANY?.email || '',
-                  website: null,
-                  flyer_url: data.flyer_url || null,
-                })
-        //import('@/lib/services/api').then(({ registrarVisualizacion }) => {
-        //  registrarVisualizacion(id).catch(err => console.log('Error registrando visualización:', err))
-        //})
+        let specificData = null
+
+        // Obtenemos datos específicos según el tipo
+        if (oppType === 'JOB' || oppType === 'EMPLEO') {
+          const { data: jobData } = await supabase
+            .from('JOB')
+            .select('*')
+            .eq('opportunity', id)
+            .single()
+          
+          specificData = jobData
+        } else if (oppType === 'TFG') {
+          const { data: tfgData } = await supabase
+            .from('TFG')
+            .select('*')
+            .eq('opportunity', id)
+            .single()
+          
+          specificData = tfgData
+        } else if (oppType === 'PASANTIA' || oppType === 'INTERNSHIP') {
+          const { data: internshipData } = await supabase
+            .from('INTERNSHIP')
+            .select('*')
+            .eq('opportunity', id)
+            .single()
+          
+          specificData = internshipData
+        }
+
+        // Construimos el objeto de oportunidad completo
+        const opportunityDetails: OpportunityDetails = {
+          id: oppData.id,
+          title: oppData.title || 'Sin título',
+          company: oppData.COMPANY?.name || 'Empresa',
+          companyLogo: oppData.COMPANY?.logo_path || '/generic-company-logo.png',
+          location: oppData.mode || 'No especificado',
+          type: oppType === 'TFG' ? 'graduation-project' : 
+                oppType === 'PASANTIA' || oppType === 'INTERNSHIP' ? 'internship' : 'job',
+          status: oppData.status === 'OPEN' ? 'active' : 'inactive',
+          description: oppData.description || 'Sin descripción',
+          requirements: oppData.requirements?.split('\n').filter(Boolean) || [],
+          postedAt: new Date(oppData.created_at).toLocaleDateString('es-CR'),
+          expiresAt: oppData.expires_at ? new Date(oppData.expires_at).toLocaleDateString('es-CR') : 'No especificado',
+          contactEmail: oppData.contact_info || oppData.COMPANY?.email || '',
+          flyer_url: oppData.flyer_url || null,
+          area: oppData.area || undefined,
+          duration: oppData.duration || specificData?.duration || undefined,
+          viewCount: oppData.view_count || 0,
+        }
+
+        // Agregamos datos específicos según el tipo
+        if (oppType === 'JOB' || oppType === 'EMPLEO') {
+          if (specificData) {
+            opportunityDetails.contractType = specificData.contract_type || 'No especificado'
+            opportunityDetails.salaryMin = specificData.salary_min || 0
+            opportunityDetails.salaryMax = specificData.salary_max || 0
+            opportunityDetails.benefits = specificData.benefits?.split('\n').filter(Boolean) || []
+            opportunityDetails.estimatedStartDate = specificData.estimated_start_date 
+              ? new Date(specificData.estimated_start_date).toLocaleDateString('es-CR')
+              : undefined
+          }
+        } else if (oppType === 'TFG' || oppType === 'PASANTIA' || oppType === 'INTERNSHIP') {
+          if (specificData) {
+            opportunityDetails.schedule = specificData.schedule || 'No especificado'
+            opportunityDetails.remuneration = specificData.remuneration || 0
+          }
+        }
+
+        setOpportunity(opportunityDetails)
+
+        // Registrar visualización (comentado como en el original)
+        // import('@/lib/services/api').then(({ registrarVisualizacion }) => {
+        //   registrarVisualizacion(id).catch(err => console.log('Error registrando visualización:', err))
+        // })
       } catch (err) {
         console.error('Error cargando oportunidad:', err)
         setOpportunity(null)
@@ -89,10 +173,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       try {
         const currentUser = await getCurrentUser()
         setUser(currentUser)
-        setRole(currentUser?.user_metadata?.role || 'student')
       } catch (err) {
         console.error('Error cargando usuario:', err)
-        setRole('student')
       }
     }
 
@@ -117,6 +199,12 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     internship: "Práctica Profesional",
     "graduation-project": "Proyecto de Graduación",
     job: "Empleo",
+  }
+
+  const typeIcons = {
+    internship: <Briefcase className="h-4 w-4" />,
+    "graduation-project": <GraduationCap className="h-4 w-4" />,
+    job: <TrendingUp className="h-4 w-4" />,
   }
 
   return (
@@ -168,30 +256,50 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 </div>
 
                 <div className="flex flex-wrap gap-3 mt-4">
-                  <Badge variant="secondary" className="bg-primary text-primary-foreground">
-                    {typeLabels[opportunity.type as keyof typeof typeLabels]}
+                  <Badge variant="secondary" className="bg-primary text-primary-foreground flex items-center gap-1">
+                    {typeIcons[opportunity.type]}
+                    {typeLabels[opportunity.type]}
                   </Badge>
-                  {opportunity.salary && (
+                  
+                  {/* Salario para empleos */}
+                  {opportunity.type === 'job' && opportunity.salaryMin !== undefined && opportunity.salaryMax !== undefined && (
                     <Badge variant="outline" className="gap-1">
                       <DollarSign className="h-3 w-3" />
-                      {opportunity.salary}
+                      {opportunity.salaryMin > 0 || opportunity.salaryMax > 0
+                        ? `₡${opportunity.salaryMin.toLocaleString()} - ₡${opportunity.salaryMax.toLocaleString()}`
+                        : 'A convenir'}
                     </Badge>
                   )}
+
+                  {/* Remuneración para TFG y pasantías */}
+                  {(opportunity.type === 'graduation-project' || opportunity.type === 'internship') && 
+                   opportunity.remuneration !== undefined && (
+                    <Badge variant="outline" className="gap-1">
+                      <DollarSign className="h-3 w-3" />
+                      {opportunity.remuneration > 0 
+                        ? `₡${opportunity.remuneration.toLocaleString()}`
+                        : 'Sin remuneración'}
+                    </Badge>
+                  )}
+
                   <Badge variant="outline" className="gap-1">
                     <MapPin className="h-3 w-3" />
                     {opportunity.location}
                   </Badge>
-                  <Badge variant="outline" className="gap-1">
-                    <Clock className="h-3 w-3" />
-                    {opportunity.postedAt}
-                  </Badge>
+
+                  {opportunity.duration && (
+                    <Badge variant="outline" className="gap-1">
+                      <Clock className="h-3 w-3" />
+                      {opportunity.duration}
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
 
               <CardContent className="space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold mb-3 text-foreground">Descripción</h3>
-                  <p className="text-muted-foreground leading-relaxed">{opportunity.description}</p>
+                  <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{opportunity.description}</p>
                 </div>
 
                 <Separator />
@@ -209,6 +317,36 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     </ul>
                   </div>
                 )}
+
+                {/* Beneficios para empleos */}
+                {opportunity.type === 'job' && opportunity.benefits && opportunity.benefits.length > 0 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3 text-foreground">Beneficios</h3>
+                      <ul className="space-y-2">
+                        {opportunity.benefits.map((benefit: string, index: number) => (
+                          <li key={index} className="flex items-start gap-2">
+                            <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                            <span className="text-muted-foreground">{benefit}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </>
+                )}
+
+                {/* Horario para TFG y pasantías */}
+                {(opportunity.type === 'graduation-project' || opportunity.type === 'internship') && 
+                 opportunity.schedule && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3 text-foreground">Horario</h3>
+                      <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{opportunity.schedule}</p>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -216,24 +354,60 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           <div className="lg:col-span-1">
             <Card className="sticky top-24">
               <CardHeader>
-                <CardTitle>Aplicar a esta oportunidad</CardTitle>
+                <CardTitle>Detalles</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button className="w-full" size="lg">
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  Aplicar Ahora
-                </Button>
-
-                <Separator />
-
                 <div className="space-y-3">
+                  {/* Tipo de contrato para empleos */}
+                  {opportunity.type === 'job' && opportunity.contractType && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium text-foreground">Tipo de contrato</p>
+                        <p className="text-muted-foreground">{opportunity.contractType}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fecha de inicio estimada para empleos */}
+                  {opportunity.type === 'job' && opportunity.estimatedStartDate && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium text-foreground">Fecha de inicio estimada</p>
+                        <p className="text-muted-foreground">{opportunity.estimatedStartDate}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Área */}
+                  {opportunity.area && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium text-foreground">Área</p>
+                        <p className="text-muted-foreground">{opportunity.area}</p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="font-medium text-foreground">Fecha de expiración</p>
-                      <p className="text-muted-foreground">{opportunity.expiresAt}</p>
+                      <p className="font-medium text-foreground">Publicado</p>
+                      <p className="text-muted-foreground">{opportunity.postedAt}</p>
                     </div>
                   </div>
+
+                  {opportunity.expiresAt !== 'No especificado' && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium text-foreground">Fecha de expiración</p>
+                        <p className="text-muted-foreground">{opportunity.expiresAt}</p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 text-sm">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -244,11 +418,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   </div>
 
                   {opportunity.contactEmail && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                      <div>
+                    <div className="flex items-start gap-2 text-sm">
+                      <ExternalLink className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <div className="flex-1 min-w-0">
                         <p className="font-medium text-foreground">Contacto</p>
-                        <p className="text-muted-foreground">{opportunity.contactEmail}</p>
+                        <p className="text-muted-foreground break-words">{opportunity.contactEmail}</p>
                       </div>
                     </div>
                   )}
@@ -272,4 +446,4 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       </div>
     </div>
   )
-}        
+}
