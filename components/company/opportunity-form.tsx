@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import type React from "react"
 import { useEffect, useState } from "react"
@@ -175,6 +175,7 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
 
       setCreatedOpportunityId(data.opportunity_id)
       setShowFlyerStep(true)
+        setIsLoading(false)
 
     } catch (err: any) {
       console.error("Error completo:", err)
@@ -188,54 +189,39 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
     if (!createdOpportunityId) return
     
     setIsLoading(true)
+    setError("")
+    
     try {
-      console.log('Generando flyer para:', createdOpportunityId)
+      console.log('Generando PDF...')
+      
       const result = await generarFlyer(createdOpportunityId)
       
-      console.log('Resultado completo:', result)
+      console.log('Resultado:', result)
       
-      if ((result as any)?.success && (result as any)?.data?.html) {
-        // Guardar el flyer URL en la base de datos
-        const flyerUrl = `data:text/html;base64,${btoa((result as any).data.html)}`
+      if (result?.success && result?.data?.pdf_url) {
+        console.log('PDF guardado en:', result.data.pdf_url)
         
-        const saveResponse = await fetch(`/api/opportunities/${createdOpportunityId}/flyer`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ flyer_url: flyerUrl }),
-        })
-
-        if (!saveResponse.ok) {
-          throw new Error('Error guardando el flyer')
-        }
-
-        console.log('Flyer guardado exitosamente')
-
-        // Abrir en nueva ventana
-        const win = window.open('', '_blank')
-        if (win) {
-          win.document.open()
-          win.document.write((result as any).data.html)
-          win.document.close()
-        } else {
-          console.warn('No se pudo abrir la ventana del flyer')
-        }
-
+        // Abrir PDF en nueva ventana
+        window.open(result.data.pdf_url, '_blank')
+        
         // Redirigir después de 2 segundos
         setTimeout(() => router.push("/dashboard/company"), 2000)
       } else {
         console.error('Error en respuesta:', result)
-        throw new Error((result as any)?.error || 'No hay HTML')
+        throw new Error('Error al generar PDF')
       }
     } catch (err: any) {
-      console.error('Exception:', err)
-      setError(`Error generando flyer: ${err.message}`)
+      console.error('Error:', err)
+      alert(`Error: ${err.message}`)
+      setError(`Error: ${err.message}`)
+    } finally {
       setIsLoading(false)
     }
   }
 
-  const handleSkipFlyer = async () => {
-    router.push("/dashboard/company")
-  }
+  const handleSkipFlyer = () => {
+  router.push("/dashboard/company")
+}
 
   const addRequirement = () => {
     setFormData({

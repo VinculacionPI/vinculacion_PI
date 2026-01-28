@@ -15,25 +15,18 @@ export interface ExplorarOportunidadesResponse {
 }
 
 async function callEdgeFunction<T>(functionName: string, body: any): Promise<T> {
-  const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   
-  // Obtener el token de sesión del usuario
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
   
-  if (!token) {
-    console.error('No access token found')
-    throw new Error('Usuario no autenticado')
-  }
   
-  const response = await fetch(`${BACKEND_URL}/functions/v1/${functionName}`, {
+  const response = await fetch('/api/edge-functions-proxy', {
     method: 'POST',
     headers: {
-      'apikey': ANON_KEY,
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      functionName,
+      payload: body,
+    }),
   })
 
   if (!response.ok) {
@@ -75,12 +68,20 @@ export async function registrarVisualizacion(publicacionId: string): Promise<voi
 }
 
 
-export async function generarFlyer(publicacionId: string, plantilla = 'default') {
-  return callEdgeFunction('generar-flyer', {
-    publicacion_id: publicacionId,
-    plantilla,
-  })
-}
+    export async function generarFlyer(publicacionId: string, plantilla = 'default') {
+      const response = await fetch('/api/flyer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicacion_id: publicacionId, plantilla })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Error generando flyer')
+      }
+
+      return response.json()
+    }
 
   export async function generarInformeTFG({
     empresa_id,
@@ -138,8 +139,7 @@ export async function enviarNotificacion(params: {
   entidad_id?: string
 }) {
   try {
-    const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const response = await fetch(`${BACKEND_URL}/functions/v1/enviar-notificacion`, {
+      const response = await fetch(`${BACKEND_URL}/functions/v1/enviar-notificacion`, {
       method: 'POST',
       headers: {
         'apikey': ANON_KEY,
@@ -172,8 +172,7 @@ export async function obtenerInteresados(params: {
   }
 }) {
   try {
-    const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const response = await fetch(`${BACKEND_URL}/functions/v1/obtener-interesados`, {
+      const response = await fetch(`${BACKEND_URL}/functions/v1/obtener-interesados`, {
       method: 'POST',
       headers: {
         'apikey': ANON_KEY,
