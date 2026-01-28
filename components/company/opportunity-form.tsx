@@ -15,6 +15,7 @@ import { generarFlyer } from "@/lib/services/api"
 import type { OpportunityType } from "@/lib/types"
 import { getCurrentCompanyId } from '@/lib/auth/get-current-user'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { supabase } from "@/lib/supabase"
 
 interface OpportunityFormProps {
   initialData?: {
@@ -168,14 +169,59 @@ export function OpportunityForm({ initialData, isEdit = false }: OpportunityForm
         data = await response.json()
       }
 
+
       if (isEdit) {
+        console.log('DEBUG - isEdit:', isEdit)
+        console.log('DEBUG - initialData?.id:', initialData?.id)
+        setIsLoading(true) // Mantener loading mientras regenera
+        
+        // Regenerar flyer si existe
+        try {
+          const { data: currentOpp } = await supabase
+            .from('OPPORTUNITY')
+            .select('flyer_url')
+            .eq('id', initialData?.id)
+            .single()
+
+          if (currentOpp?.flyer_url) {
+            const fileName = currentOpp.flyer_url.split('/').pop()
+            
+            if (fileName && !currentOpp.flyer_url.startsWith('data:')) {
+              console.log('Eliminando flyer antiguo:', fileName)
+              
+              await supabase.storage
+                .from('flyers')
+                .remove([fileName.split('?')[0]])
+              
+              console.log('Generando nuevo flyer...')
+              
+              const flyerResponse = await fetch('/api/flyer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ publicacion_id: initialData?.id })
+              })
+              
+              if (flyerResponse.ok) {
+                console.log('Flyer regenerado automáticamente')
+              } else {
+                console.warn('No se pudo regenerar el flyer')
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Error al regenerar flyer:', err)
+        } finally {
+          setIsLoading(false)
+        }
+        
+        // Redirect AL FINAL
         router.push("/dashboard/company")
         return
       }
 
       setCreatedOpportunityId(data.opportunity_id)
       setShowFlyerStep(true)
-        setIsLoading(false)
+      setIsLoading(false)
 
     } catch (err: any) {
       console.error("Error completo:", err)

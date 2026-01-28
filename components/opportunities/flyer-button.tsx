@@ -14,17 +14,16 @@ export function FlyerButton({
 
   const handleViewFlyer = async () => {
     if (currentFlyerUrl) {
-      // Mostrar flyer personalizado
+      // Si ya existe un flyer, abrirlo directamente
       window.open(currentFlyerUrl, '_blank')
     } else {
-      // Generar y mostrar flyer automático
+      // Si no existe, generar uno nuevo con Puppeteer
       setIsLoading(true)
       try {
-        const response = await fetch(`/api/opportunities/${opportunityId}/generate-flyer`, {
+        const response = await fetch(`/api/flyer`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ publicacion_id: opportunityId })
         })
 
         if (!response.ok) {
@@ -32,12 +31,10 @@ export function FlyerButton({
         }
 
         const result = await response.json()
-        if (result.success && result.data?.html) {
-          const win = window.open('', '_blank')
-          if (win) {
-            win.document.write(result.data.html)
-            win.document.close()
-          }
+        
+        if (result.success && result.data?.pdf_url) {
+          // Abrir el PDF generado
+          window.open(result.data.pdf_url, '_blank')
         } else {
           throw new Error('No se pudo generar el flyer')
         }
