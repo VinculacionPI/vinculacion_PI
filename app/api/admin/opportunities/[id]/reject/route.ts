@@ -19,20 +19,29 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     )
   }
 
-  // auth
-  const { data: auth, error: authErr } = await supabase.auth.getUser()
+  const { data: auth } = await supabase.auth.getUser()
   let userId: string | null = auth?.user?.id ?? null
   if (!userId && isDev()) userId = process.env.DEV_USER_ID ?? null
 
-  if (authErr) {
-    return NextResponse.json({ message: "Error auth.getUser()", detail: authErr.message }, { status: 401 })
-  }
   if (!userId) {
     return NextResponse.json({ message: "No autenticado y sin DEV_USER_ID" }, { status: 401 })
   }
 
-  // 1) update OPPORTUNITY
-  const { data: opp, error: oppErr } = await supabase
+  // Obtener datos de la oportunidad ANTES de actualizar
+  const { data: opportunityData, error: fetchError } = await supabase
+    .from("OPPORTUNITY")
+    .select("id, title, type, company_id, COMPANY(name)")
+    .eq("id", id)
+    .single()
+
+  if (fetchError || !opportunityData) {
+    return NextResponse.json(
+      { message: "Error obteniendo oportunidad", detail: fetchError?.message },
+      { status: 500 }
+    )
+  }
+
+  const { data, error } = await supabase
     .from("OPPORTUNITY")
     .update({
       approval_status: "REJECTED",
@@ -43,72 +52,60 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .select("id,title,approval_status,company_id,created_at,lifecycle_status")
     .single()
 
-  if (oppErr || !opp) {
+  if (error || !data) {
     return NextResponse.json(
-      {
-        message: "Falló update OPPORTUNITY",
-        step: "update_opportunity",
-        detail: oppErr?.message,
-        code: (oppErr as any)?.code,
-        hint: (oppErr as any)?.hint,
-      },
+      { message: "Error al rechazar oportunidad", detail: error?.message },
       { status: 500 }
     )
   }
 
-  // 2) insert REJECT_OPPORTUNITY (si falla, igual devolvemos éxito de rechazo)
-  const { error: rejErr } = await supabase.from("REJECT_OPPORTUNITY").insert({
-    opportunity: opp.id,
+  await supabase.from("REJECT_OPPORTUNITY").insert({
+    opportunity: data.id,
     reason,
   })
 
-  if (rejErr) {
-    // Devolvemos 200 pero avisamos que no guardó motivo
-    return NextResponse.json(
-      {
-        message: "Oportunidad rechazada, pero falló guardar el motivo",
-        step: "insert_reject_opportunity",
-        detail: rejErr.message,
-        code: (rejErr as any)?.code,
-        hint: (rejErr as any)?.hint,
-        opportunity: opp,
-      },
-      { status: 200 }
-    )
-  }
-
-  // 3) insert AUDIT_LOG (si falla, igual devolvemos éxito)
-  const { error: auditErr } = await supabase.from("AUDIT_LOG").insert({
+  await supabase.from("AUDIT_LOG").insert({
     action: "REJECT",
     entity: "OPPORTUNITY",
-    entity_id: String(opp.id),
-    company_id: String(opp.company_id),
-    opportunity_id: String(opp.id),
-    user_id: String(userId),
-    details: JSON.stringify({
-      approval_status: opp.approval_status,
-      title: opp.title,
-      rejection_reason: reason,
-    }),
+    entity_id: data.id,
+    company_id: data.company_id,
+    user_id: userId,
+    details: JSON.stringify({ approval_status: data.approval_status, title: data.title, rejection_reason: reason }),
+    opportunity_id: data.id,
   })
 
-  if (auditErr) {
-    return NextResponse.json(
-      {
-        message: "Oportunidad rechazada, pero falló auditoría",
-        step: "insert_audit_log",
-        detail: auditErr.message,
-        code: (auditErr as any)?.code,
-        hint: (auditErr as any)?.hint,
-        opportunity: opp,
-      },
-      { status: 200 }
-    )
+  // NOTIFICAR A LA EMPRESA QUE SU OPORTUNIDAD FUE RECHAZADA
+  try {
+    console.log('Notificando rechazo a la empresa...')
+    
+    const { data: companyUser } = await supabase
+      .from('USERS')
+      .select('id')
+      .eq('id', opportunityData.company_id)
+      .single()
+
+    if (companyUser) {
+      let tipoTexto = 'oportunidad'
+      if (opportunityData.type === 'INTERNSHIP') tipoTexto = 'pasantía'
+      else if (opportunityData.type === 'TFG') tipoTexto = 'proyecto'
+      else if (opportunityData.type === 'JOB') tipoTexto = 'empleo'
+
+      await supabase.from('NOTIFICATION').insert({
+        user_id: companyUser.id,
+        type: 'OPPORTUNITY_REJECTED',
+        title: `${tipoTexto.charAt(0).toUpperCase() + tipoTexto.slice(1)} rechazada`,
+        message: `Tu ${tipoTexto} "${opportunityData.title}" fue rechazada. Motivo: ${reason.substring(0, 100)}${reason.length > 100 ? '...' : ''}`,
+        entity_type: 'opportunity',
+        entity_id: id,
+        is_read: false,
+        created_at: new Date().toISOString()
+      })
+      
+      console.log('Notificación de rechazo enviada a la empresa')
+    }
+  } catch (companyNotifError) {
+    console.warn('Error notificando a empresa:', companyNotifError)
   }
 
-  // OK
-  return NextResponse.json(
-    { message: "Oportunidad rechazada", opportunity: { ...opp, rejection_reason: reason } },
-    { status: 200 }
-  )
+  return NextResponse.json({ message: "Oportunidad rechazada", opportunity: { ...data, rejection_reason: reason } }, { status: 200 })
 }

@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { NotificationList } from "./notification-list"
 import { supabase } from "@/lib/supabase"
+import { getCurrentUser } from "@/lib/auth/get-current-user"
 
 export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0)
@@ -20,18 +21,28 @@ export function NotificationBell() {
 
   useEffect(() => {
     loadUserAndNotifications()
+    
+    // Recargar cada 30 segundos
+    const interval = setInterval(loadUserAndNotifications, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const loadUserAndNotifications = async () => {
-    // Por ahora usamos un usuario de prueba
-    // En producción esto vendría de la sesión autenticada
-    const testUserId = '3d146d09-c6ae-4dbe-b4e3-7045a5e1964a'
-    setUserId(testUserId)
-    await loadNotifications(testUserId)
+    const user = await getCurrentUser()
+    
+    if (!user?.id) {
+      console.warn('No hay usuario autenticado')
+      return
+    }
+
+    setUserId(user.id)
+    await loadNotifications(user.id)
   }
 
   const loadNotifications = async (uid: string) => {
     try {
+      console.log('Cargando notificaciones para:', uid)
+      
       const { data, error } = await supabase
         .from('NOTIFICATION')
         .select('*')
@@ -39,10 +50,15 @@ export function NotificationBell() {
         .order('created_at', { ascending: false })
         .limit(20)
 
-      if (error) throw error
+      if (error) {
+        console.error('Error:', error)
+        throw error
+      }
 
+      console.log('Notificaciones encontradas:', data?.length || 0)
+      
       setNotifications(data || [])
-      setUnreadCount(data?.filter(n => !n.read).length || 0)
+      setUnreadCount(data?.filter(n => !n.is_read).length || 0)
     } catch (error) {
       console.error('Error cargando notificaciones:', error)
     }
@@ -54,9 +70,9 @@ export function NotificationBell() {
     try {
       await supabase
         .from('NOTIFICATION')
-        .update({ read: true })
+        .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('user_id', userId)
-        .eq('read', false)
+        .eq('is_read', false)
 
       await loadNotifications(userId)
     } catch (error) {
@@ -68,7 +84,7 @@ export function NotificationBell() {
     try {
       await supabase
         .from('NOTIFICATION')
-        .update({ read: true })
+        .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('id', notificationId)
 
       if (userId) await loadNotifications(userId)

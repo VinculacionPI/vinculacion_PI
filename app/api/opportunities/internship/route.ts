@@ -13,10 +13,9 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Verificar que sea una empresa y obtener company_id
-  // El company_id ES el mismo que el user.id en tu arquitectura
   const { data: companyData, error: companyError } = await supabase
     .from("COMPANY")
-    .select("id, approval_status")
+    .select("id, approval_status, name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -91,9 +90,50 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const opportunityId = data;
+    const isNewOpportunity = !i_id;
+
+    console.log('Es nueva oportunidad?', isNewOpportunity)
+    console.log('i_id:', i_id)
+
+    // Notificar a administradores cuando se CREA (no edita) una oportunidad
+    if (isNewOpportunity) {
+      console.log('Entrando a bloque de notificaciones admin')
+      
+      try {
+        console.log('Buscando admins...')
+        
+        const { data: admins, error: adminError } = await supabase
+          .from('USERS')
+          .select('id')
+          .eq('role', 'ADMIN')
+
+        console.log('Admins encontrados:', admins?.length || 0)
+        console.log('Error buscando admins:', adminError)
+
+        if (admins && admins.length > 0) {
+          const adminNotifications = admins.map(admin => ({
+            user_id: admin.id,
+            type: 'PENDING_APPROVAL',
+            title: 'Nueva pasantía pendiente',
+            message: `${companyData.name} publicó "${i_title}" - Requiere aprobación`,
+            entity_type: 'opportunity',
+            entity_id: opportunityId,
+            is_read: false,
+            created_at: new Date().toISOString()
+          }))
+
+          await supabase.from('NOTIFICATION').insert(adminNotifications)
+          console.log(`Notificación enviada a ${admins.length} administradores`)
+        }
+      } catch (notifError) {
+        console.warn('Error creando notificaciones admin:', notifError)
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      opportunity_id: data,
+      opportunity_id: opportunityId,
       action: i_id ? "updated" : "created",
     });
   } catch (err: any) {

@@ -2,9 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { CheckCheck, Briefcase, FileText, AlertCircle } from "lucide-react"
-import Link from "next/link"
+import { CheckCheck, Briefcase, FileText, AlertCircle, Building2, GraduationCap } from "lucide-react"
 
 interface NotificationListProps {
   notifications: any[]
@@ -21,25 +19,31 @@ export function NotificationList({
 }: NotificationListProps) {
   const getIcon = (type: string) => {
     switch (type) {
-      case 'NUEVO_INTERES':
+      case 'NEW_OPPORTUNITY':
         return <Briefcase className="h-4 w-4 text-blue-500" />
-      case 'CAMBIO_ESTADO':
+      case 'PENDING_APPROVAL':
         return <AlertCircle className="h-4 w-4 text-yellow-500" />
-      case 'NUEVA_PUBLICACION':
-        return <FileText className="h-4 w-4 text-green-500" />
+      case 'PENDING_COMPANY_APPROVAL':
+        return <Building2 className="h-4 w-4 text-purple-500" />
+      case 'PENDING_GRADUATION':
+        return <GraduationCap className="h-4 w-4 text-green-500" />
       default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />
+        return <FileText className="h-4 w-4 text-gray-500" />
     }
   }
 
-  const getLink = (notification: any) => {
-    const payload = notification.payload || {}
-    
-    if (payload.publicacion_id) {
-      return `/opportunities/${payload.publicacion_id}`
+  const handleNotificationClick = (notification: any) => {
+    // Marcar como leída
+    if (!notification.is_read) {
+      onMarkAsRead(notification.id)
     }
-    
-    return '#'
+
+    // Solo navegar si es una oportunidad para estudiantes/graduados
+    if (notification.type === 'NEW_OPPORTUNITY' && 
+        notification.entity_type === 'opportunity' && 
+        notification.entity_id) {
+      window.location.href = `/opportunities/${notification.entity_id}`
+    }
   }
 
   return (
@@ -71,24 +75,21 @@ export function NotificationList({
             {notifications.map((notification) => (
               <div
                 key={notification.id}
-                className={`p-4 hover:bg-accent transition-colors ${
-                  !notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''
+                className={`p-4 hover:bg-accent transition-colors cursor-pointer ${
+                  !notification.is_read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''
                 }`}
+                onClick={() => handleNotificationClick(notification)}
               >
-                <Link
-                  href={getLink(notification)}
-                  onClick={() => !notification.read && onMarkAsRead(notification.id)}
-                  className="flex gap-3"
-                >
+                <div className="flex gap-3">
                   <div className="mt-1 flex-shrink-0">
                     {getIcon(notification.type)}
                   </div>
                   <div className="flex-1 space-y-1">
                     <p className="text-sm font-medium leading-none">
-                      {notification.payload?.titulo || 'Notificación'}
+                      {notification.title || 'Notificación'}
                     </p>
                     <p className="text-xs text-muted-foreground line-clamp-2">
-                      {notification.payload?.contenido || 'Sin descripción'}
+                      {notification.message || 'Sin descripción'}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(notification.created_at).toLocaleDateString('es-CR', {
@@ -99,12 +100,12 @@ export function NotificationList({
                       })}
                     </p>
                   </div>
-                  {!notification.read && (
+                  {!notification.is_read && (
                     <div className="flex-shrink-0">
                       <div className="h-2 w-2 rounded-full bg-blue-500" />
                     </div>
                   )}
-                </Link>
+                </div>
               </div>
             ))}
           </div>

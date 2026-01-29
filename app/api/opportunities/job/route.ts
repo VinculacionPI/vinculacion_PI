@@ -5,17 +5,14 @@ import { createRouteSupabase } from "@/lib/supabase/route";
 export async function POST(req: NextRequest) {
   const { supabase } = createRouteSupabase(req);
 
-  // 1. Obtener usuario logueado desde Supabase
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  // 2. Verificar que sea una empresa y obtener company_id
-  // El company_id ES el mismo que el user.id en tu arquitectura
   const { data: companyData, error: companyError } = await supabase
     .from("COMPANY")
-    .select("id, approval_status")
+    .select("id, approval_status, name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -38,7 +35,6 @@ export async function POST(req: NextRequest) {
 
   const companyId = companyData.id;
 
-  // 3. Leer body
   let body;
   try {
     body = await req.json();
@@ -108,11 +104,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log("Empleo creado/actualizado exitosamente:", data);
+    const opportunityId = data;
+    const isNewOpportunity = !j_id;
+
+    // Notificar a administradores cuando se CREA (no edita)
+    if (isNewOpportunity) {
+      try {
+        const { data: admins } = await supabase
+          .from('USERS')
+          .select('id')
+          .eq('role', 'ADMIN')
+
+        if (admins && admins.length > 0) {
+          const adminNotifications = admins.map(admin => ({
+            user_id: admin.id,
+            type: 'PENDING_APPROVAL',
+            title: 'Nueva oferta de empleo pendiente',
+            message: `${companyData.name} publicó "${j_title}" - Requiere aprobación`,
+            entity_type: 'opportunity',
+            entity_id: opportunityId,
+            is_read: false,
+            created_at: new Date().toISOString()
+          }))
+
+          await supabase.from('NOTIFICATION').insert(adminNotifications)
+          console.log(`Notificación enviada a ${admins.length} administradores`)
+        }
+      } catch (notifError) {
+        console.warn('Error creando notificaciones admin:', notifError)
+      }
+    }
+
+    console.log("Empleo creado/actualizado exitosamente:", opportunityId);
 
     return NextResponse.json({
       success: true,
-      opportunity_id: data,
+      opportunity_id: opportunityId,
       action: j_id ? "updated" : "created",
     });
   } catch (err: any) {

@@ -208,6 +208,32 @@ export async function POST(request: NextRequest) {
       console.warn(" Error en auditoría (no crítico):", auditError)
     }
 
+    // ===== 6) Notificar a administradores =====
+    try {
+      const { data: admins } = await supabase
+        .from('USERS')
+        .select('id')
+        .eq('role', 'admin')
+
+      if (admins && admins.length > 0) {
+        const adminNotifications = admins.map(admin => ({
+          user_id: admin.id,
+          type: 'PENDING_GRADUATION',
+          title: 'Nueva solicitud de egresado',
+          message: `${validated.name} (${validated.carnet}) solicita cambio a egresado - ${validated.degree_title}`,
+          entity_type: 'graduation_request',
+          entity_id: insertedReq.id,
+          is_read: false,
+          created_at: new Date().toISOString()
+        }))
+
+        await supabase.from('NOTIFICATION').insert(adminNotifications)
+        console.log(`Notificación enviada a ${admins.length} administradores`)
+      }
+    } catch (notifError) {
+      console.warn('Error creando notificaciones admin:', notifError)
+    }
+
     return NextResponse.json(
       {
         success: true,

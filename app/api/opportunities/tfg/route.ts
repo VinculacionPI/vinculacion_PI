@@ -5,18 +5,15 @@ import { createRouteSupabase } from "@/lib/supabase/route";
 export async function POST(req: NextRequest) {
   const { supabase } = createRouteSupabase(req);
 
-  // Obtener usuario logueado desde Supabase
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   
   if (userError || !user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  // 2. Verificar que sea una empresa y obtener company_id
-  // El company_id ES el mismo que el user.id en tu arquitectura
   const { data: companyData, error: companyError } = await supabase
     .from("COMPANY")
-    .select("id, approval_status")
+    .select("id, approval_status, name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -27,19 +24,18 @@ export async function POST(req: NextRequest) {
 
   if (!companyData) {
     return NextResponse.json({ 
-      error: "No autorizado. Solo las empresas pueden crear pasantías." 
+      error: "No autorizado. Solo las empresas pueden crear proyectos." 
     }, { status: 403 });
   }
 
   if (companyData.approval_status.toLowerCase() !== "aprobada") {
     return NextResponse.json({ 
-      error: "Tu empresa debe estar aprobada para crear pasantías" 
+      error: "Tu empresa debe estar aprobada para crear proyectos" 
     }, { status: 403 });
   }
 
   const companyId = companyData.id;
   
-  // Leer body
   let body;
   try {
     body = await req.json();
@@ -70,7 +66,6 @@ export async function POST(req: NextRequest) {
           : i_remuneration
         : null;
 
-    // Llamada a la función RPC del TFG
     const { data, error } = await supabase.rpc("createupdatetfg", {
       i_id: i_id ?? null,
       i_title,
@@ -83,7 +78,7 @@ export async function POST(req: NextRequest) {
       i_duration,
       i_schedule,
       i_remuneration: remunerationValue,
-      i_company_id: companyId, // ← toma la compañía del usuario logueado
+      i_company_id: companyId,
       i_flyer_url: i_flyer_url ?? null,
     });
 
@@ -92,14 +87,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const opportunityId = data;
+    const isNewOpportunity = !i_id;
+
+    if (isNewOpportunity) {
+      try {
+        console.log('Buscando administradores...')
+        
+        const { data: admins, error: adminError } = await supabase
+          .from('USERS')
+          .select('id')
+          .eq('role', 'ADMIN')
+
+        console.log('Admins encontrados:', admins?.length || 0)
+        console.log('Error admin:', adminError)
+
+        if (admins && admins.length > 0) {
+          const adminNotifications = admins.map(admin => ({
+            user_id: admin.id,
+            type: 'PENDING_APPROVAL',
+            title: 'Nuevo proyecto pendiente',
+            message: companyData.name + ' publico "' + i_title + '" - Requiere aprobacion',
+            entity_type: 'opportunity',
+            entity_id: opportunityId,
+            is_read: false,
+            created_at: new Date().toISOString()
+          }))
+
+          const { error: insertError } = await supabase.from('NOTIFICATION').insert(adminNotifications)
+          
+          if (insertError) {
+            console.error('Error insertando notificaciones:', insertError)
+          } else {
+            console.log('Notificaciones enviadas a ' + admins.length + ' administradores')
+          }
+        }
+      } catch (notifError) {
+        console.warn('Error creando notificaciones admin:', notifError)
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      opportunity_id: data,
+      opportunity_id: opportunityId,
       action: i_id ? "updated" : "created",
     });
 
   } catch (err: any) {
-    console.error("Excepción createupdatetfg:", err);
+    console.error("Excepcion createupdatetfg:", err);
     return NextResponse.json(
       { error: err?.message ?? "Error desconocido" },
       { status: 500 }

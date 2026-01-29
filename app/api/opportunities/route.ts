@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
       query = query.or(`title.ilike.%${clean}%,description.ilike.%${clean}%`)
     }
 
-    // ✅ REGLAS POR ROL (solo cuando hay rol)
+    // REGLAS POR ROL (solo cuando hay rol)
     if (norm(userRole) === "STUDENT") {
       query = query
         .in("type", ["TFG", "INTERNSHIP"])
