@@ -149,7 +149,7 @@ export function OpportunityApprovalsTable() {
 
     const typeLabels: Record<string, string> = {
       internship: "Práctica",
-      TFG: "graduation-project",
+      tfg: "Trabajo de Fin de Grado",
       job: "Empleo"
     }
 
@@ -217,7 +217,7 @@ export function OpportunityApprovalsTable() {
                   (opportunity as any)?.company ??
                   "—"
 
-                const typeKey = String((opportunity as any)?.type ?? "")
+                const typeKey = String((opportunity as any)?.type ?? "").toLowerCase()
                 const typeLabel = typeLabels[typeKey] || typeKey || "—"
 
 
