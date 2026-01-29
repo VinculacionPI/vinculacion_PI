@@ -410,31 +410,6 @@ export default function StudentDashboardPage() {
             {userProfile ? `Bienvenido, ${userProfile.name}` : "Cargando perfil..."}
           </p>
         </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              <User className="h-4 w-4" />
-              {userProfile?.name?.split(" ")[0] || "Cuenta"}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => router.push("/dashboard/student/profile")}>
-              <User className="h-4 w-4 mr-2" />
-              Mi Perfil
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/dashboard/student/notifications")}>
-              <Bell className="h-4 w-4 mr-2" />
-              Notificaciones
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-              <X className="h-4 w-4 mr-2" />
-              Cerrar Sesión
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       {/* Estadísticas */}
