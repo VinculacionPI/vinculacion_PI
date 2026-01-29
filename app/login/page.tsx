@@ -10,7 +10,7 @@ export default function LoginPage() {
   const router = useRouter()
   const [isChecking, setIsChecking] = useState(false) 
 
-  /*useEffect(() => {
+  useEffect(() => {
     const checkAuth = async () => {
       try {
         const response = await fetch("/api/profile")
@@ -30,7 +30,6 @@ export default function LoginPage() {
     }
     checkAuth()
   }, [router])
-  */
 
   if (isChecking) {
     return (
