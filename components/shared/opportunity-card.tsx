@@ -88,6 +88,12 @@ export function OpportunityCard({
     router.push(getDetailPath(oppId, opportunity.type))
   }
 
+  const typeLabels: Record<string, string> = {
+      internship: "Práctica",
+      "graduation-project": "Trabajo de Fin de Grado",
+      job: "Empleo"
+  }
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader>
@@ -130,7 +136,7 @@ export function OpportunityCard({
 
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">
-          <Badge variant="secondary">{opportunity.type}</Badge>
+          <Badge variant="secondary">{typeLabels[opportunity.type] || opportunity.type}</Badge>
         </div>
 
         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
