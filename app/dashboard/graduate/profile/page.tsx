@@ -4,7 +4,18 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, MapPin, IdCard, GraduationCap, Edit, ArrowLeft, Award, Calendar } from "lucide-react"
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  IdCard,
+  GraduationCap,
+  Edit,
+  ArrowLeft,
+  Award,
+  Calendar,
+} from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -44,17 +55,18 @@ export default function GraduateProfilePage() {
       setError("")
 
       const response = await fetch("/api/profile")
-      
+
       if (!response.ok) {
-        if (response.status === 401) {
+        // ✅ si está desactivado (403) o no autenticado (401), lo sacamos
+        if (response.status === 401 || response.status === 403) {
           router.replace("/login")
           return
         }
         throw new Error("Error al cargar perfil")
       }
 
-      const data = await response.json()
-      setProfile(data as GraduateProfile)
+      const data = (await response.json()) as GraduateProfile
+      setProfile(data)
     } catch (err: any) {
       setError(err?.message ?? "Error cargando perfil")
     } finally {
@@ -82,12 +94,17 @@ export default function GraduateProfilePage() {
             <p className="text-gray-600 mt-2">Gestiona tu información personal y académica</p>
           </div>
 
-          <Button asChild variant="outline">
-            <Link href="/dashboard/graduate/profile/edit" className="flex items-center gap-2">
-              <Edit className="h-4 w-4" />
-              Editar Perfil
-            </Link>
-          </Button>
+          {/* ✅ Editar + Eliminar */}
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/dashboard/graduate/profile/edit" className="flex items-center gap-2">
+                <Edit className="h-4 w-4" />
+                Editar Perfil
+              </Link>
+            </Button>
+
+            <DeleteProfileButton />
+          </div>
         </div>
       </div>
 
@@ -106,9 +123,22 @@ export default function GraduateProfilePage() {
               <InfoField icon={<IdCard className="h-4 w-4" />} label="Cédula" value={profile.cedula} />
               <InfoField icon={<IdCard className="h-4 w-4" />} label="Carné" value={profile.carnet} />
               <InfoField icon={<Mail className="h-4 w-4" />} label="Correo Institucional" value={profile.email} />
-              <InfoField icon={<Mail className="h-4 w-4" />} label="Correo Personal" value={profile.personalEmail || "No registrado"} />
-              <InfoField icon={<Phone className="h-4 w-4" />} label="Teléfono" value={profile.phone || "No registrado"} />
-              <InfoField icon={<MapPin className="h-4 w-4" />} label="Dirección" value={profile.address} className="md:col-span-2" />
+              <InfoField
+                icon={<Mail className="h-4 w-4" />}
+                label="Correo Personal"
+                value={profile.personalEmail || "No registrado"}
+              />
+              <InfoField
+                icon={<Phone className="h-4 w-4" />}
+                label="Teléfono"
+                value={profile.phone || "No registrado"}
+              />
+              <InfoField
+                icon={<MapPin className="h-4 w-4" />}
+                label="Dirección"
+                value={profile.address}
+                className="md:col-span-2"
+              />
             </div>
           </CardContent>
         </Card>
@@ -156,48 +186,38 @@ export default function GraduateProfilePage() {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {profile.graduation_year && (
-              <InfoField 
-                icon={<Calendar className="h-4 w-4" />} 
-                label="Año de Graduación" 
-                value={profile.graduation_year.toString()} 
+            {profile.graduation_year != null && (
+              <InfoField
+                icon={<Calendar className="h-4 w-4" />}
+                label="Año de Graduación"
+                value={String(profile.graduation_year)}
               />
             )}
             {profile.degree_title && (
-              <InfoField 
-                icon={<Award className="h-4 w-4" />} 
-                label="Título del Grado" 
-                value={profile.degree_title} 
-              />
+              <InfoField icon={<Award className="h-4 w-4" />} label="Título del Grado" value={profile.degree_title} />
             )}
             {profile.major && (
-              <InfoField 
-                icon={<GraduationCap className="h-4 w-4" />} 
-                label="Major" 
-                value={profile.major} 
-              />
+              <InfoField icon={<GraduationCap className="h-4 w-4" />} label="Major" value={profile.major} />
             )}
             {profile.thesis_title && (
-              <InfoField 
-                icon={<GraduationCap className="h-4 w-4" />} 
-                label="Título de Tesis" 
-                value={profile.thesis_title} 
+              <InfoField
+                icon={<GraduationCap className="h-4 w-4" />}
+                label="Título de Tesis"
+                value={profile.thesis_title}
                 className="md:col-span-2 lg:col-span-3"
               />
             )}
-            {profile.final_gpa && (
-              <InfoField 
-                icon={<Award className="h-4 w-4" />} 
-                label="GPA Final" 
-                value={profile.final_gpa.toFixed(2)} 
+            {profile.final_gpa != null && (
+              <InfoField
+                icon={<Award className="h-4 w-4" />}
+                label="GPA Final"
+                value={Number(profile.final_gpa).toFixed(2)}
               />
             )}
           </div>
 
           {!profile.graduation_year && !profile.degree_title && (
-            <p className="text-sm text-gray-500 text-center py-4">
-              No se ha registrado información académica de graduación
-            </p>
+            <p className="text-sm text-gray-500 text-center py-4">No se ha registrado información académica de graduación</p>
           )}
         </CardContent>
       </Card>
@@ -205,7 +225,59 @@ export default function GraduateProfilePage() {
   )
 }
 
-function InfoField({ icon, label, value, className }: any) {
+function DeleteProfileButton() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const handleDelete = async () => {
+    setErr(null)
+
+    const ok = window.confirm(
+      "¿Seguro que deseas eliminar tu perfil?\n\nTu cuenta será desactivada y no podrás volver a ingresar."
+    )
+    if (!ok) return
+
+    try {
+      setLoading(true)
+
+      const res = await fetch("/api/profile", { method: "DELETE" })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.message ?? "No se pudo eliminar el perfil")
+      }
+
+      router.replace("/login")
+      router.refresh()
+    } catch (e: any) {
+      setErr(e?.message ?? "Error eliminando perfil")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+        {loading ? "Eliminando..." : "Eliminar Perfil"}
+      </Button>
+      {err ? <span className="text-xs text-red-600">{err}</span> : null}
+    </div>
+  )
+}
+
+function InfoField({
+  icon,
+  label,
+  value,
+  className,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  className?: string
+}) {
   return (
     <div className={className}>
       <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">

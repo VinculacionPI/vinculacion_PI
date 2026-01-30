@@ -4,7 +4,17 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, MapPin, IdCard, BookOpen, GraduationCap, Edit, ArrowLeft } from "lucide-react"
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  IdCard,
+  BookOpen,
+  GraduationCap,
+  Edit,
+  ArrowLeft,
+} from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -40,17 +50,18 @@ export default function StudentProfilePage() {
       setError("")
 
       const response = await fetch("/api/profile")
-      
+
       if (!response.ok) {
-        if (response.status === 401) {
+        // ✅ si está desactivado (403) o no autenticado (401), lo sacamos
+        if (response.status === 401 || response.status === 403) {
           router.replace("/login")
           return
         }
         throw new Error("Error al cargar perfil")
       }
 
-      const data = await response.json()
-      setProfile(data as StudentProfile)
+      const data = (await response.json()) as StudentProfile
+      setProfile(data)
     } catch (err: any) {
       setError(err?.message ?? "Error cargando perfil")
     } finally {
@@ -78,13 +89,16 @@ export default function StudentProfilePage() {
             <p className="text-gray-600 mt-2">Gestiona tu información personal y académica</p>
           </div>
 
-          <div className="flex gap-3">
+          {/* ✅ Editar + Eliminar + Solicitar Egreso */}
+          <div className="flex gap-3 items-center">
             <Button asChild variant="outline">
               <Link href="/dashboard/student/profile/edit" className="flex items-center gap-2">
                 <Edit className="h-4 w-4" />
                 Editar Perfil
               </Link>
             </Button>
+
+            <DeleteProfileButton />
 
             {(profile.role ?? "").toLowerCase() === "student" && (
               <Button asChild>
@@ -113,10 +127,22 @@ export default function StudentProfilePage() {
               <InfoField icon={<IdCard className="h-4 w-4" />} label="Cédula" value={profile.cedula} />
               <InfoField icon={<IdCard className="h-4 w-4" />} label="Carné" value={profile.carnet} />
               <InfoField icon={<Mail className="h-4 w-4" />} label="Correo Institucional" value={profile.email} />
-              <InfoField icon={<Mail className="h-4 w-4" />} label="Correo Personal" value={profile.personalEmail || "No registrado"} />
-              <InfoField icon={<Phone className="h-4 w-4" />} label="Teléfono" value={profile.phone || "No registrado"} />
+              <InfoField
+                icon={<Mail className="h-4 w-4" />}
+                label="Correo Personal"
+                value={profile.personalEmail || "No registrado"}
+              />
+              <InfoField
+                icon={<Phone className="h-4 w-4" />}
+                label="Teléfono"
+                value={profile.phone || "No registrado"}
+              />
               <InfoField icon={<MapPin className="h-4 w-4" />} label="Dirección" value={profile.address} />
-              <InfoField icon={<BookOpen className="h-4 w-4" />} label="Semestre" value={`Semestre ${profile.semester}`} />
+              <InfoField
+                icon={<BookOpen className="h-4 w-4" />}
+                label="Semestre"
+                value={`Semestre ${profile.semester}`}
+              />
             </div>
           </CardContent>
         </Card>
@@ -152,6 +178,48 @@ export default function StudentProfilePage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  )
+}
+
+function DeleteProfileButton() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const handleDelete = async () => {
+    setErr(null)
+
+    const ok = window.confirm(
+      "¿Seguro que deseas eliminar tu perfil?\n\nTu cuenta será desactivada y no podrás volver a ingresar."
+    )
+    if (!ok) return
+
+    try {
+      setLoading(true)
+
+      const res = await fetch("/api/profile", { method: "DELETE" })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.message ?? "No se pudo eliminar el perfil")
+      }
+
+      router.replace("/login")
+      router.refresh()
+    } catch (e: any) {
+      setErr(e?.message ?? "Error eliminando perfil")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+        {loading ? "Eliminando..." : "Eliminar Perfil"}
+      </Button>
+      {err ? <span className="text-xs text-red-600">{err}</span> : null}
     </div>
   )
 }
