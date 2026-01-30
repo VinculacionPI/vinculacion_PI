@@ -355,10 +355,11 @@ export default function StudentDashboardPage() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Buscar</label>
                     <Input
-                      placeholder="Título, descripción, habilidades..."
+                      placeholder="Título"
                       value={filters.q}
                       onChange={(e) => setFilters((p) => ({ ...p, q: e.target.value }))}
                       className="w-full"
+                      disabled={activeTab === "interested"}
                     />
                   </div>
 
