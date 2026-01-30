@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerSupabase } from "@/lib/supabase/server"
-import puppeteer from 'puppeteer'
+
+let puppeteer: any
+
+// Detectar entorno y cargar puppeteer según corresponda
+if (process.env.VERCEL) {
+  // En Vercel, usar puppeteer-core + @sparticuz/chromium
+  puppeteer = require('puppeteer-core')
+} else {
+  // En desarrollo local, usar puppeteer normal
+  puppeteer = require('puppeteer')
+}
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -294,10 +304,26 @@ export async function POST(req: NextRequest) {
 
     // Generar PDF con Puppeteer
     console.log('Lanzando Puppeteer...')
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    })
+    
+    let launchConfig: any = {}
+    
+    if (process.env.VERCEL) {
+      // En Vercel, usar chromium de @sparticuz/chromium
+      const chromium = require('@sparticuz/chromium')
+      launchConfig = {
+        args: chromium.args,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless,
+      }
+    } else {
+      // En desarrollo local, configuración normal
+      launchConfig = {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      }
+    }
+    
+    const browser = await puppeteer.launch(launchConfig)
 
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'networkidle0' })
