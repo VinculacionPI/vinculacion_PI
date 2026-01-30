@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerSupabase } from "@/lib/supabase/server"
 import puppeteer from 'puppeteer-core'
-import chromium from '@sparticuz/chromium'
+import chromium from 'chrome-aws-lambda'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // Increased for serverless Chrome initialization
@@ -297,7 +297,7 @@ export async function POST(req: NextRequest) {
     console.log('Lanzando Puppeteer...')
     
     // Detect if running locally or in serverless environment
-    const isLocal = process.env.VERCEL !== '1'
+    const isLocal = !process.env.AWS_REGION && !process.env.VERCEL
     
     const browser = await puppeteer.launch({
       args: isLocal 
@@ -306,7 +306,7 @@ export async function POST(req: NextRequest) {
       defaultViewport: chromium.defaultViewport,
       executablePath: isLocal 
         ? process.env.PUPPETEER_EXECUTABLE_PATH || '/home/jerson/.cache/puppeteer/chrome/linux-144.0.7559.96/chrome-linux64/chrome'
-        : await chromium.executablePath(),
+        : await chromium.executablePath,
       headless: chromium.headless
     })
 
