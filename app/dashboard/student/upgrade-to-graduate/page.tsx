@@ -1,18 +1,21 @@
 "use client"
 
+import type React from "react"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertCircle, CheckCircle, GraduationCap, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 const CURRENT_YEAR = new Date().getFullYear()
-const GRADUATION_YEARS = Array.from({ length: 20 }, (_, i) => CURRENT_YEAR - i)
+const MIN_YEAR = CURRENT_YEAR - 50
+const MAX_YEAR = CURRENT_YEAR
+
+const norm = (s: string) => (s ?? "").trim()
 
 export default function UpgradeToGraduatePage() {
   const router = useRouter()
@@ -20,54 +23,56 @@ export default function UpgradeToGraduatePage() {
   const [success, setSuccess] = useState("")
   const [error, setError] = useState("")
   const [profile, setProfile] = useState<any>(null)
-  
+
   const [formData, setFormData] = useState({
-    graduationYear: "",
+    graduationYear: "", // ahora es input numérico
     degreeTitle: "",
     major: "",
     thesisTitle: "",
-    finalGPA: ""
+    finalGPA: "",
   })
 
   useEffect(() => {
     fetchProfile()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchProfile = async () => {
-  try {
-    const { data: { session }, error: sessionError } =
-      await supabase.auth.getSession()
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
 
-    if (sessionError) throw sessionError
+      if (sessionError) throw sessionError
 
-    if (!session) {
-      router.push("/login")
-      return
+      if (!session) {
+        router.push("/login")
+        return
+      }
+
+      const { data, error } = await supabase.from("USERS").select("*").eq("id", session.user.id).single()
+      if (error) throw error
+
+      if (data) {
+        if (String(data.status ?? "").trim().toUpperCase() !== "ACTIVE") {
+          router.replace("/login")
+          return
+        }
+
+        setProfile(data)
+
+        setFormData((prev) => ({
+          ...prev,
+          major: data.major ?? "",
+          finalGPA: data.final_gpa?.toString() ?? "",
+        }))
+      }
+    } catch (err) {
+      console.error("Error fetching profile:", err)
+      setError("No se pudo cargar la información del perfil")
     }
-
-    const { data, error } = await supabase
-      .from("USERS")
-      .select("*")
-      .eq("id", session.user.id)
-      .single()
-
-    if (error) throw error
-
-    if (data) {
-      setProfile(data)
-
-      // Prellenar campos del formulario
-      setFormData(prev => ({
-        ...prev,
-        major: data.major ?? "",
-        finalGPA: data.final_gpa?.toString() ?? ""
-      }))
-    }
-  } catch (err) {
-    console.error("Error fetching profile:", err)
-    setError("No se pudo cargar la información del perfil")
   }
-}
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,79 +81,86 @@ export default function UpgradeToGraduatePage() {
     setSuccess("")
 
     try {
-      // Usa supabase directamente
-      
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+        error: sessionErr,
+      } = await supabase.auth.getSession()
+
+      if (sessionErr) throw sessionErr
       if (!session) throw new Error("No hay sesión activa")
-      
-      // Validaciones
-      if (!formData.graduationYear || !formData.degreeTitle) {
+
+      if (!norm(formData.graduationYear) || !norm(formData.degreeTitle)) {
         throw new Error("Año de graduación y título obtenido son obligatorios")
       }
 
-      // 1. Crear solicitud de egreso
-      const graduationRequest = {
-        user_id: session.user.id,
-        graduation_year: formData.graduationYear,
-        degree_title: formData.degreeTitle,
-        major: formData.major,
-        thesis_title: formData.thesisTitle,
-        final_gpa: formData.finalGPA,
-        status: "pending",
-        requested_at: new Date().toISOString()
+      const graduationYearInt = Number(formData.graduationYear)
+      if (!Number.isInteger(graduationYearInt)) {
+        throw new Error("El año de graduación debe ser un número entero")
+      }
+      if (graduationYearInt < MIN_YEAR || graduationYearInt > MAX_YEAR) {
+        throw new Error(`El año de graduación debe estar entre ${MIN_YEAR} y ${MAX_YEAR}`)
       }
 
-      const { error: requestError } = await supabase
-        .from("graduation_requests")
-        .insert([graduationRequest])
+      const gpaNum = norm(formData.finalGPA) === "" ? null : Number(formData.finalGPA)
+      if (gpaNum !== null && (!Number.isFinite(gpaNum) || gpaNum < 0 || gpaNum > 10)) {
+        throw new Error("El GPA debe estar entre 0 y 10")
+      }
 
+      const graduationRequest = {
+        user_id: session.user.id,
+        graduation_year: graduationYearInt,
+        degree_title: norm(formData.degreeTitle),
+        major: norm(formData.major) || null,
+        thesis_title: norm(formData.thesisTitle) || null,
+        final_gpa: gpaNum,
+        status: "pending",
+        requested_at: new Date().toISOString(),
+      }
+
+      const { error: requestError } = await supabase.from("graduation_requests").insert([graduationRequest])
       if (requestError) throw requestError
 
-      // 2. Registrar auditoría
-      await supabase
-        .from("audit_logs")
-        .insert([{
+      await supabase.from("audit_logs").insert([
+        {
           user_id: session.user.id,
           operation_type: "graduation_request",
           ip_address: "client-side",
           details: "Solicitud de cambio a egresado",
           metadata: {
-            graduation_year: formData.graduationYear,
-            degree_title: formData.degreeTitle,
+            graduation_year: graduationYearInt,
+            degree_title: norm(formData.degreeTitle),
             current_role: "student",
-            requested_role: "graduate"
-          }
-        }])
+            requested_role: "graduate",
+          },
+        },
+      ])
 
-      // 3. Enviar notificación por email (simulada)
       try {
-        await fetch('/api/notifications/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        await fetch("/api/notifications/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            to: profile.email,
-            subject: 'Solicitud de Egreso Recibida',
-            template: 'graduation-request',
+            to: profile?.email,
+            subject: "Solicitud de Egreso Recibida",
+            template: "graduation-request",
             data: {
-              name: profile.name,
-              graduation_year: formData.graduationYear,
-              degree_title: formData.degreeTitle
-            }
-          })
+              name: profile?.name,
+              graduation_year: graduationYearInt,
+              degree_title: norm(formData.degreeTitle),
+            },
+          }),
         })
       } catch (emailError) {
         console.warn("Error enviando email:", emailError)
       }
 
       setSuccess("Solicitud de egreso enviada exitosamente. Recibirá una notificación cuando sea aprobada.")
-      
-      // Redirigir después de 5 segundos
+
       setTimeout(() => {
         router.push("/dashboard/student/profile")
       }, 5000)
-
     } catch (err: any) {
-      setError(err.message)
+      setError(err?.message ?? "Error enviando solicitud")
     } finally {
       setLoading(false)
     }
@@ -163,10 +175,12 @@ export default function UpgradeToGraduatePage() {
             Volver al Perfil
           </Link>
         </Button>
+
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <GraduationCap className="h-8 w-8" />
           Solicitar Actualización a Egresado
         </h1>
+
         <p className="text-gray-600 mt-2">
           Complete este formulario para solicitar el cambio de rol de Estudiante a Egresado.
         </p>
@@ -175,31 +189,28 @@ export default function UpgradeToGraduatePage() {
       <Card>
         <CardHeader>
           <CardTitle>Información de Graduación</CardTitle>
-          <CardDescription>
-            Proporcione los datos requeridos para completar el proceso de egreso.
-          </CardDescription>
+          <CardDescription>Proporcione los datos requeridos para completar el proceso de egreso.</CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="graduationYear">Año de Graduación *</Label>
-                <Select
+                <Input
+                  id="graduationYear"
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_YEAR}
+                  max={MAX_YEAR}
+                  step={1}
                   value={formData.graduationYear}
-                  onValueChange={(value) => setFormData({...formData, graduationYear: value})}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, graduationYear: e.target.value }))}
+                  placeholder={`Ej: ${CURRENT_YEAR}`}
                   disabled={loading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione el año" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GRADUATION_YEARS.map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  required
+                />
+                <p className="text-xs text-gray-500">Rango permitido: {MIN_YEAR} – {MAX_YEAR}</p>
               </div>
 
               <div className="space-y-2">
@@ -207,7 +218,7 @@ export default function UpgradeToGraduatePage() {
                 <Input
                   id="degreeTitle"
                   value={formData.degreeTitle}
-                  onChange={(e) => setFormData({...formData, degreeTitle: e.target.value})}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, degreeTitle: e.target.value }))}
                   placeholder="Ej: Bachillerato en Ingeniería en Computación"
                   disabled={loading}
                   required
@@ -221,7 +232,7 @@ export default function UpgradeToGraduatePage() {
                 <Input
                   id="major"
                   value={formData.major}
-                  onChange={(e) => setFormData({...formData, major: e.target.value})}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, major: e.target.value }))}
                   placeholder="Ej: Ingeniería en Computación"
                   disabled={loading}
                 />
@@ -236,7 +247,7 @@ export default function UpgradeToGraduatePage() {
                   min="0"
                   max="10"
                   value={formData.finalGPA}
-                  onChange={(e) => setFormData({...formData, finalGPA: e.target.value})}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, finalGPA: e.target.value }))}
                   placeholder="Ej: 8.5"
                   disabled={loading}
                 />
@@ -248,13 +259,12 @@ export default function UpgradeToGraduatePage() {
               <Input
                 id="thesisTitle"
                 value={formData.thesisTitle}
-                onChange={(e) => setFormData({...formData, thesisTitle: e.target.value})}
+                onChange={(e) => setFormData((prev) => ({ ...prev, thesisTitle: e.target.value }))}
                 placeholder="Ej: Sistema de Gestión de Proyectos TFG"
                 disabled={loading}
               />
             </div>
 
-            {/* Información importante */}
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
               <h4 className="font-semibold text-blue-800 mb-2">⚠️ Importante:</h4>
               <ul className="text-blue-700 text-sm space-y-1">
@@ -265,7 +275,6 @@ export default function UpgradeToGraduatePage() {
               </ul>
             </div>
 
-            {/* Mensajes de éxito/error */}
             {success && (
               <div className="bg-green-50 border border-green-200 rounded-md p-4 flex gap-3">
                 <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
@@ -284,15 +293,10 @@ export default function UpgradeToGraduatePage() {
             )}
 
             <div className="flex justify-between pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push("/dashboard/student/profile")}
-                disabled={loading}
-              >
+              <Button type="button" variant="outline" onClick={() => router.push("/dashboard/student/profile")} disabled={loading}>
                 Cancelar
               </Button>
-              
+
               <Button type="submit" disabled={loading} className="bg-green-600 hover:bg-green-700">
                 {loading ? "Enviando..." : "Solicitar Egreso"}
               </Button>

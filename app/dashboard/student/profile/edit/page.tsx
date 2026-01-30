@@ -293,21 +293,6 @@ export default function EditProfilePage() {
         </CardContent>
       </Card>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>¿Necesitas cambiar datos no editables?</CardTitle>
-          <CardDescription>
-            Si necesitas actualizar tu nombre, cédula, carné o correo institucional, debes solicitarlo formalmente.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" asChild>
-            <Link href="/dashboard/student/profile/request-change">
-              Solicitar Cambio Administrativo
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   )
 }
