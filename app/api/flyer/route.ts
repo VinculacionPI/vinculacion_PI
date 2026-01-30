@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerSupabase } from "@/lib/supabase/server"
-import puppeteer from 'puppeteer-core'
-import chromium from 'chrome-aws-lambda'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // Increased for serverless Chrome initialization
@@ -296,19 +294,30 @@ export async function POST(req: NextRequest) {
     // Generar PDF con Puppeteer
     console.log('Lanzando Puppeteer...')
     
-    // Detect if running locally or in serverless environment
-    const isLocal = !process.env.AWS_REGION && !process.env.VERCEL
+    // Dynamic imports for Vercel compatibility
+    const isProduction = process.env.VERCEL === '1'
     
-    const browser = await puppeteer.launch({
-      args: isLocal 
-        ? ['--no-sandbox', '--disable-setuid-sandbox']
-        : chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: isLocal 
-        ? process.env.PUPPETEER_EXECUTABLE_PATH || '/home/jerson/.cache/puppeteer/chrome/linux-144.0.7559.96/chrome-linux64/chrome'
-        : await chromium.executablePath,
-      headless: chromium.headless
-    })
+    let browser
+    if (isProduction) {
+      // Production: Use puppeteer-core with @sparticuz/chromium
+      const puppeteerCore = await import('puppeteer-core')
+      const chromium = await import('@sparticuz/chromium')
+      
+      browser = await puppeteerCore.default.launch({
+        args: chromium.default.args,
+        defaultViewport: chromium.default.defaultViewport,
+        executablePath: await chromium.default.executablePath(),
+        headless: chromium.default.headless
+      })
+    } else {
+      // Local: Use regular puppeteer with installed Chrome
+      const puppeteer = await import('puppeteer')
+      
+      browser = await puppeteer.default.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+    }
 
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'networkidle0' })
