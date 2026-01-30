@@ -303,10 +303,15 @@ export async function POST(req: NextRequest) {
       const puppeteerCore = await import('puppeteer-core')
       const chromium = await import('@sparticuz/chromium')
       
+      // Set font config for Chromium
+      await chromium.default.font(
+        'https://raw.githack.com/googlei18n/noto-emoji/master/fonts/NotoColorEmoji.ttf'
+      )
+      
       browser = await puppeteerCore.default.launch({
-        args: chromium.default.args,
+        args: [...chromium.default.args, '--single-process'],
         defaultViewport: chromium.default.defaultViewport,
-        executablePath: await chromium.default.executablePath(),
+        executablePath: await chromium.default.executablePath('/tmp'),
         headless: chromium.default.headless
       })
     } else {
