@@ -7,9 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Download, FileText, TrendingUp, CheckCircle2, XCircle, ArrowLeft } from "lucide-react"
+import { Download, FileText, TrendingUp, CheckCircle2, XCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase" // ajusta si tu path real es "@/lib/supabase/client"
-import Link from "next/link"
 import {
   BarChart,
   Bar,
@@ -284,15 +283,6 @@ export default function InformesPage() {
         {/* ✅ Título y descripción dinámicos */}
         <h1 className="text-3xl font-bold text-foreground mb-2">{tipoTitleUI(selectedTipo)}</h1>
         <p className="text-muted-foreground">{tipoDescUI(selectedTipo)}</p>
-      </div>
-
-      <div>
-        <Button variant="ghost" asChild className="mb-4">
-          <Link href="/dashboard/admin" className="flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Volver al Dashboard
-          </Link>
-        </Button>
       </div>
 
       {/* Filters */}

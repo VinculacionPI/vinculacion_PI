@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export interface DashboardEmpresaResponse {
   success: boolean
@@ -236,4 +237,14 @@ export async function eliminarInteres(opportunity_id: string) {
     console.error('Error eliminando interés:', error)
     return { success: false, error: error.message }
   }
+}
+
+export async function obtenerPostulaciones(opportunityId: string) {
+  const res = await fetch(
+    `/api/opportunities/${opportunityId}/applications`,
+    { credentials: "include", cache: "no-store" }
+  )
+
+  if (!res.ok) throw new Error("Error obteniendo postulaciones")
+  return res.json()
 }

@@ -375,6 +375,32 @@ export default function GraduateDashboardPage() {
             {userProfile ? `Bienvenido, ${userProfile.name}` : "Cargando perfil..."}
           </p>
         </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <User className="h-4 w-4" />
+              {userProfile?.name?.split(" ")[0] || "Cuenta"}
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/graduate/profile")}>
+              <User className="h-4 w-4 mr-2" />
+              Mi Perfil
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/graduate/notifications")}>
+              <Bell className="h-4 w-4 mr-2" />
+              Notificaciones
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+              <X className="h-4 w-4 mr-2" />
+              Cerrar Sesión
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Estadísticas */}
@@ -421,37 +447,7 @@ export default function GraduateDashboardPage() {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Duración</label>
-                    <Input
-                      placeholder="Ej: 3 meses, 6 meses"
-                      value={filters.duration}
-                      onChange={(e) => setFilters((p) => ({ ...p, duration: e.target.value }))}
-                      disabled={activeTab === "interested"}
-                      className="w-full"
-                    />
-                  </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Empresa</label>
-                    <Select
-                      value={filters.companyId}
-                      onValueChange={(value) => setFilters((p) => ({ ...p, companyId: value }))}
-                      disabled={activeTab === "interested" || companies.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todas las empresas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas</SelectItem>
-                        {companies.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
                   <Button variant="outline" onClick={clearFilters} className="w-full">
                     Limpiar filtros
