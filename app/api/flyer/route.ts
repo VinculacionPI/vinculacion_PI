@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerSupabase } from "@/lib/supabase/server"
-import puppeteer from 'puppeteer'
+import puppeteer from 'puppeteer-core'
+import chromium from '@sparticuz/chromium'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 30
+export const maxDuration = 60 // Increased for serverless Chrome initialization
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabase()
@@ -294,9 +295,19 @@ export async function POST(req: NextRequest) {
 
     // Generar PDF con Puppeteer
     console.log('Lanzando Puppeteer...')
+    
+    // Detect if running locally or in serverless environment
+    const isLocal = process.env.VERCEL !== '1'
+    
     const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: isLocal 
+        ? ['--no-sandbox', '--disable-setuid-sandbox']
+        : chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: isLocal 
+        ? process.env.PUPPETEER_EXECUTABLE_PATH || '/home/jerson/.cache/puppeteer/chrome/linux-144.0.7559.96/chrome-linux64/chrome'
+        : await chromium.executablePath(),
+      headless: chromium.headless
     })
 
     const page = await browser.newPage()
