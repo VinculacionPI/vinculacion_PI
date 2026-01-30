@@ -6,18 +6,22 @@ import { StatsCard } from "@/components/shared/stats-card"
 import { LoadingState } from "@/components/shared/loading-state"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Building2, Briefcase, Users, CheckCircle, Clock, User, X, GraduationCap, BarChart } from "lucide-react"
+import {
+  Building2,
+  Briefcase,
+  Users,
+  CheckCircle,
+  Clock,
+  GraduationCap,
+  BarChart,
+} from "lucide-react"
+
 import { CompanyApprovalsTable } from "@/components/admin/company-approvals-table"
 import { OpportunityApprovalsTable } from "@/components/admin/opportunity-approvals-table"
 import { GraduatesApprovalsTable } from "@/components/admin/graduates-approvals-table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+
+// ✅ NUEVO: tabla para activar/desactivar users (students & graduates)
+import { UsersAdminTable } from "@/components/admin/users-admin-table"
 
 type AdminStats = {
   totalCompanies: number
@@ -26,7 +30,6 @@ type AdminStats = {
   pendingOpportunities: number
   totalUsers: number
   activeOpportunities: number
-
   // pendingGraduations?: number
 }
 
@@ -106,15 +109,16 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* BOTÓN NUEVO: Informes */}
-          <Button 
-            variant="default" 
-            onClick={() => router.push('/informes')}
-            className="gap-2"
-          >
+          <Button variant="default" onClick={() => router.push("/informes")} className="gap-2">
             <BarChart className="h-4 w-4" />
             Informes
           </Button>
+
+          {/* Si quieres volver a poner logout en UI, descomenta:
+          <Button variant="outline" onClick={handleLogout}>
+            Cerrar sesión
+          </Button>
+          */}
         </div>
       </div>
 
@@ -150,7 +154,6 @@ export default function AdminDashboardPage() {
           description="Requieren revisión"
         />
 
-        {/* 👇 opcional: tarjeta de graduación (por ahora "—") */}
         <StatsCard
           title="Graduaciones Pendientes"
           value={pendingGraduations ?? "—"}
@@ -159,8 +162,9 @@ export default function AdminDashboardPage() {
         />
       </div>
 
+      {/* ✅ Agregamos tabs para Students y Graduates */}
       <Tabs defaultValue="companies" className="space-y-6">
-        <TabsList>
+        <TabsList className="flex flex-wrap">
           <TabsTrigger value="companies">
             <Building2 className="h-4 w-4 mr-2" />
             Empresas Pendientes ({stats.pendingCompanies})
@@ -171,10 +175,20 @@ export default function AdminDashboardPage() {
             Oportunidades Pendientes ({stats.pendingOpportunities})
           </TabsTrigger>
 
-          {/* NUEVO TAB */}
           <TabsTrigger value="graduates">
             <GraduationCap className="h-4 w-4 mr-2" />
             Graduados Pendientes ({pendingGraduations ?? "—"})
+          </TabsTrigger>
+
+          {/* ✅ NUEVOS */}
+          <TabsTrigger value="students_manage">
+            <Users className="h-4 w-4 mr-2" />
+            Gestionar Students
+          </TabsTrigger>
+
+          <TabsTrigger value="graduates_manage">
+            <GraduationCap className="h-4 w-4 mr-2" />
+            Gestionar Graduates
           </TabsTrigger>
         </TabsList>
 
@@ -186,9 +200,17 @@ export default function AdminDashboardPage() {
           <OpportunityApprovalsTable />
         </TabsContent>
 
-        {/* NUEVA SECCIÓN */}
         <TabsContent value="graduates">
           <GraduatesApprovalsTable />
+        </TabsContent>
+
+        {/* ✅ NUEVAS SECCIONES: activar/desactivar */}
+        <TabsContent value="students_manage">
+          <UsersAdminTable roleFilter="student" title="Students (activar / desactivar)" />
+        </TabsContent>
+
+        <TabsContent value="graduates_manage">
+          <UsersAdminTable roleFilter="graduate" title="Graduates (activar / desactivar)" />
         </TabsContent>
       </Tabs>
     </div>
