@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { OpportunityCard, type Opportunity } from "@/components/shared/opportunity-card"
@@ -13,53 +12,26 @@ import { StatsCard } from "@/components/shared/stats-card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { supabase } from "@/lib/supabase/client"
 
-import {
-  Briefcase,
-  Bookmark,
-  Search,
-  TrendingUp,
-  User,
-  Bell,
-  GraduationCap,
-  X,
-} from "lucide-react"
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Briefcase, Bookmark, Search, TrendingUp, GraduationCap } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 
 const ITEMS_PER_PAGE = 12
 
 type OpportunitiesApiResponse = {
-  data: any[] // <- importante: /api/my-interests NO siempre devuelve Opportunity[]
+  data: any[] // <- /api/my-interests NO siempre devuelve Opportunity[]
   page: number
   total: number
   totalPages: number
 }
 
-type CompanyOption = { id: string; name: string }
-
 type TfgFilters = {
   q: string
   mode: string // "all" | ...
   duration: string
-  companyId: string // "all" | uuid
 }
 
 /** Normaliza strings para comparar */
@@ -76,7 +48,6 @@ function normalizeToOpportunity(raw: any): Opportunity | null {
   const id = src?.id
   if (!id || id === "undefined") return null
 
-  // type canonical (tu UI usa "graduation-project" etc)
   const typeRaw = norm(src?.type)
   let uiType: Opportunity["type"] = "graduation-project"
   if (typeRaw === "INTERNSHIP") uiType = "internship"
@@ -105,13 +76,10 @@ export default function StudentDashboardPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
-  const [companies, setCompanies] = useState<CompanyOption[]>([])
-
   const [filters, setFilters] = useState<TfgFilters>({
     q: "",
     mode: "all",
     duration: "",
-    companyId: "all",
   })
 
   const [activeTab, setActiveTab] = useState<"all" | "interested">("all")
@@ -130,10 +98,7 @@ export default function StudentDashboardPage() {
       } = await supabase.auth.getSession()
 
       if (sessionError) throw sessionError
-
-      if (!session) {
-        return
-      }
+      if (!session) return
 
       const { data: profile, error: profileError } = await supabase
         .from("USERS")
@@ -142,7 +107,6 @@ export default function StudentDashboardPage() {
         .single()
 
       if (profileError) {
-        // si no existe, usamos datos mínimos (NO crear acá, eso lo haría un trigger/endpoint idealmente)
         setUserProfile({
           id: session.user.id,
           name: session.user.email?.split("@")[0] || "Estudiante",
@@ -155,24 +119,6 @@ export default function StudentDashboardPage() {
       setUserProfile(profile)
     } catch (error) {
       console.error("Error obteniendo perfil:", error)
-    }
-  }
-
-  // =========================
-  // COMPANIES
-  // =========================
-  const fetchCompanies = async () => {
-    try {
-      const res = await fetch("/api/companies", {
-        cache: "no-store",
-        credentials: "include",
-      })
-      const json = await res.json()
-      if (res.ok && json.data) setCompanies(json.data)
-      else setCompanies([])
-    } catch (e) {
-      console.error("Error fetching companies:", e)
-      setCompanies([])
     }
   }
 
@@ -190,7 +136,7 @@ export default function StudentDashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
-        credentials: "include", // ✅ importante
+        credentials: "include",
         body: JSON.stringify({ opportunityIds: opps.map((o) => o.id) }),
       })
 
@@ -220,7 +166,6 @@ export default function StudentDashboardPage() {
       if (filters.q.trim()) params.set("q", filters.q.trim())
       if (filters.duration) params.set("duration", filters.duration)
       if (filters.mode !== "all") params.set("mode", filters.mode)
-      if (filters.companyId !== "all") params.set("companyId", filters.companyId)
 
       const res = await fetch(`/api/opportunities?${params.toString()}`, {
         cache: "no-store",
@@ -235,16 +180,13 @@ export default function StudentDashboardPage() {
       }
 
       const json = (await res.json()) as OpportunitiesApiResponse
-      const opps = (json.data ?? [])
-        .map(normalizeToOpportunity)
-        .filter(Boolean) as Opportunity[]
+      const opps = (json.data ?? []).map(normalizeToOpportunity).filter(Boolean) as Opportunity[]
 
       setOpportunities(opps)
       setTotalPages(json.totalPages ?? 1)
 
       await fetchInterestsBatch(opps)
 
-      // tab all -> no usamos interestedTotal
       setInterestedTotal(0)
     } catch (err) {
       console.error("Error fetching opportunities:", err)
@@ -282,11 +224,7 @@ export default function StudentDashboardPage() {
       }
 
       const json = (await res.json()) as OpportunitiesApiResponse
-
-      // ✅ aquí viene la magia: /api/my-interests puede venir como [{interestId, opportunity:{...}}]
-      const opps = (json.data ?? [])
-        .map(normalizeToOpportunity)
-        .filter(Boolean) as Opportunity[]
+      const opps = (json.data ?? []).map(normalizeToOpportunity).filter(Boolean) as Opportunity[]
 
       setOpportunities(opps)
       setTotalPages(json.totalPages ?? 1)
@@ -310,7 +248,6 @@ export default function StudentDashboardPage() {
   // =========================
   useEffect(() => {
     fetchUserProfile()
-    fetchCompanies()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -318,11 +255,11 @@ export default function StudentDashboardPage() {
     if (activeTab === "interested") fetchOpportunitiesInterested()
     else fetchOpportunitiesAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, currentPage, filters.q, filters.mode, filters.duration, filters.companyId])
+  }, [activeTab, currentPage, filters.q, filters.mode, filters.duration])
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [filters.q, filters.mode, filters.duration, filters.companyId, activeTab])
+  }, [filters.q, filters.mode, filters.duration, activeTab])
 
   // =========================
   // ACTIONS
@@ -366,26 +303,12 @@ export default function StudentDashboardPage() {
     }
   }
 
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      })
-
-      router.push("/login")
-    } catch (error) {
-      console.error("Error al cerrar sesión:", error)
-    }
-  }
-
   const clearFilters = () => {
-    // ✅ Importantísimo: tus selects usan "all"
-    setFilters({ q: "", mode: "all", duration: "", companyId: "all" })
+    setFilters({ q: "", mode: "all", duration: "" })
   }
 
   // =========================
-  // STATS (sobre type UI)
+  // STATS
   // =========================
   const stats = useMemo(() => {
     const t = opportunities
@@ -455,39 +378,6 @@ export default function StudentDashboardPage() {
                         <SelectItem value="virtual">Virtual</SelectItem>
                         <SelectItem value="híbrida">Híbrida</SelectItem>
                       </SelectContent>
-
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Duración</label>
-                    <Input
-                      placeholder="Ej: 3 meses, 6 meses"
-                      value={filters.duration}
-                      onChange={(e) => setFilters((p) => ({ ...p, duration: e.target.value }))}
-                      disabled={activeTab === "interested"}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Empresa</label>
-                    <Select
-                      value={filters.companyId}
-                      onValueChange={(value) => setFilters((p) => ({ ...p, companyId: value }))}
-                      disabled={activeTab === "interested" || companies.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todas las empresas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas</SelectItem>
-                        {companies.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
                     </Select>
                   </div>
 
@@ -513,6 +403,7 @@ export default function StudentDashboardPage() {
                     {activeTab === "all" ? opportunities.length : "…"}
                   </Badge>
                 </TabsTrigger>
+
                 <TabsTrigger value="interested" className="flex items-center gap-2">
                   <Bookmark className="h-4 w-4" />
                   Mis intereses
