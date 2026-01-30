@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerSupabase } from "@/lib/supabase/server"
+import puppeteer from 'puppeteer'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60 // Increased for serverless Chrome initialization
+export const maxDuration = 30
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabase()
@@ -293,36 +294,10 @@ export async function POST(req: NextRequest) {
 
     // Generar PDF con Puppeteer
     console.log('Lanzando Puppeteer...')
-    
-    // Dynamic imports for Vercel compatibility
-    const isProduction = process.env.VERCEL === '1'
-    
-    let browser
-    if (isProduction) {
-      // Production: Use puppeteer-core with @sparticuz/chromium
-      const puppeteerCore = await import('puppeteer-core')
-      const chromium = await import('@sparticuz/chromium')
-      
-      // Set font config for Chromium
-      await chromium.default.font(
-        'https://raw.githack.com/googlei18n/noto-emoji/master/fonts/NotoColorEmoji.ttf'
-      )
-      
-      browser = await puppeteerCore.default.launch({
-        args: [...chromium.default.args, '--single-process'],
-        defaultViewport: chromium.default.defaultViewport,
-        executablePath: await chromium.default.executablePath('/tmp'),
-        headless: chromium.default.headless
-      })
-    } else {
-      // Local: Use regular puppeteer with installed Chrome
-      const puppeteer = await import('puppeteer')
-      
-      browser = await puppeteer.default.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      })
-    }
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    })
 
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'networkidle0' })
