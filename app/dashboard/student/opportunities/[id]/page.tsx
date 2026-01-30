@@ -26,7 +26,7 @@ type OpportunityDetail = {
   created_at: string
   company: string | null
 
-  // ✅ viene de tu /api/opportunities/[id] como flyerUrl (derivado de OPPORTUNITY.flyer_url)
+  // viene de tu /api/opportunities/[id] como flyerUrl (derivado de OPPORTUNITY.flyer_url)
   flyerUrl: string | null
 }
 
@@ -47,8 +47,13 @@ export default function OpportunityDetailPage() {
   const [interested, setInterested] = useState(false)
   const [interestLoading, setInterestLoading] = useState(true)
 
-  // ✅ estado para el botón de flyer (descarga)
+  // estado para el botón de flyer (descarga)
   const [flyerBusy, setFlyerBusy] = useState(false)
+
+  const [applyOpen, setApplyOpen] = useState(false)
+  const [cvFile, setCvFile] = useState<File | null>(null)
+  const [cvUploading, setCvUploading] = useState(false)
+
 
   useEffect(() => {
     const load = async () => {
@@ -166,7 +171,7 @@ export default function OpportunityDetailPage() {
   }
 
   /**
-   * ✅ Descarga usando el endpoint server-side:
+   * Descarga usando el endpoint server-side:
    *    /api/opportunities/[id]/flyer/download
    *
    * Igual que en graduate: evitamos JWT inválido / edge functions.
@@ -234,7 +239,7 @@ export default function OpportunityDetailPage() {
             <span className="sr-only">{interested ? "Retirar interés" : "Manifestar interés"}</span>
           </Button>
 
-          {/* ✅ Botón de descarga (siempre visible)
+          {/* Botón de descarga (siempre visible)
               - el server responde 302 si existe flyer_url
               - o 404 si no existe */}
           <Button
@@ -248,6 +253,17 @@ export default function OpportunityDetailPage() {
             <Download className="h-4 w-4" />
             {flyerBusy ? "Descargando..." : "Descargar flyer"}
           </Button>
+
+          <Button
+            type="button"
+            onClick={() => setApplyOpen(true)}
+            disabled={!canInteract}
+            className="gap-2"
+          >
+            Aplicar a esta Oportunidad
+          </Button>
+
+
         </div>
       </div>
 
@@ -309,6 +325,118 @@ export default function OpportunityDetailPage() {
           </div>
         ) : null}
       </div>
+
+        {applyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg space-y-4">
+            <h2 className="text-lg font-semibold">Aplicar a la oportunidad</h2>
+
+            <p className="text-sm text-muted-foreground">
+              Sube tu CV para postular a esta oportunidad.
+            </p>
+
+            <label
+              htmlFor="cv-upload"
+              className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/30 px-6 py-8 text-center transition hover:border-accent hover:bg-accent/5"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-8 w-8 text-muted-foreground"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M12 16v-8m0 0-3 3m3-3 3 3M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+                />
+              </svg>
+
+              {!cvFile ? (
+                <>
+                  <p className="text-sm font-medium">
+                    Haz clic para subir tu CV
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    PDF · máx. 5MB
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-accent">
+                    Archivo seleccionado
+                  </p>
+                  <p className="text-xs text-muted-foreground break-all">
+                    {cvFile.name}
+                  </p>
+                </>
+              )}
+
+              <input
+                id="cv-upload"
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setCvFile(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+            </label>
+
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setApplyOpen(false)
+                  setCvFile(null)
+                }}
+                disabled={cvUploading}
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                disabled={!cvFile || cvUploading}
+                onClick={async () => {
+                  if (!cvFile || !data || cvUploading) return
+
+                  setCvUploading(true)
+                  try {
+                    const formData = new FormData()
+                    formData.append("cv", cvFile)
+                    formData.append("opportunityId", data.id)
+
+                    console.log("CV File:", cvFile)
+                    console.log("Opportunity ID:", data.id)
+
+                    const res = await fetch("/api/student/upload-cv", {
+                      method: "POST",
+                      body: formData,
+                      credentials: "include",
+                    })
+
+                    if (!res.ok) {
+                      const j = await res.json().catch(() => ({}))
+                      throw new Error(j?.error ?? "No se pudo subir el CV")
+                    }
+                    setApplyOpen(false)
+                    setCvFile(null)
+                  } catch (err: any) {
+                    alert(err.message ?? "Error al subir el CV")
+                  } finally {
+                    setCvUploading(false)
+                  }
+                }}
+              >
+                {cvUploading ? "Subiendo..." : "Subir CV"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

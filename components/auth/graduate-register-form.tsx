@@ -29,31 +29,6 @@ interface GraduateFormData {
   final_gpa: string
 }
 
-const MAX_GPA_ALLOWED = 9.99
-
-function normalizeGpaInput(raw: string) {
-  const s = raw.trim()
-  if (!s) return { ok: true, value: "", num: null as number | null }
-
-  const canon = s.replace(",", ".")
-
-  if (!/^\d+(\.\d{0,2})?$/.test(canon)) {
-    return { ok: false, value: raw, num: null, error: "Solo números, máximo 2 decimales" }
-  }
-
-  const num = Number(canon)
-  if (!Number.isFinite(num)) return { ok: false, value: raw, num: null, error: "GPA inválido" }
-
-  if (num < 0) return { ok: false, value: raw, num: null, error: "GPA no puede ser negativo" }
-  if (num > 10) return { ok: false, value: raw, num: null, error: "GPA debe estar entre 0 y 10" }
-
-  if (num > MAX_GPA_ALLOWED) {
-    return { ok: false, value: raw, num: null, error: `Máximo permitido: ${MAX_GPA_ALLOWED}` }
-  }
-
-  return { ok: true, value: canon, num }
-}
-
 export function GraduateRegisterForm() {
   const router = useRouter()
 
@@ -112,8 +87,8 @@ export function GraduateRegisterForm() {
     if (!formData.degree_title.trim()) errs.degree_title = "Título del grado requerido"
 
     if (formData.final_gpa.trim()) {
-      const r = normalizeGpaInput(formData.final_gpa)
-      if (!r.ok) errs.final_gpa = r.error || "GPA inválido"
+      const gpa = Number(formData.final_gpa)
+      if (Number.isNaN(gpa) || gpa < 0 || gpa > 10) errs.final_gpa = "GPA inválido (0 a 10)"
     }
 
     setValidationErrors(errs)
@@ -143,6 +118,7 @@ export function GraduateRegisterForm() {
     try {
       const emailLower = formData.email.trim().toLowerCase()
 
+      // 1) Crear usuario en Supabase Auth (esto genera el user_id)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailLower,
         password: formData.password,
@@ -158,6 +134,7 @@ export function GraduateRegisterForm() {
       })
 
       if (authError) {
+        // Mensajes comunes más “humanos”
         if (authError.message.includes("already registered") || authError.code === "user_already_exists") {
           throw new Error("Este correo ya está registrado en el sistema")
         }
@@ -173,11 +150,7 @@ export function GraduateRegisterForm() {
 
       const userId = authData.user.id
 
-      const gpaParsed = (() => {
-        const r = normalizeGpaInput(formData.final_gpa)
-        return r.ok ? r.num : null
-      })()
-
+      // 2) Crear perfil + solicitud (USERS + graduation_requests) via tu API
       const res = await fetch("/api/auth/register/graduates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -197,12 +170,16 @@ export function GraduateRegisterForm() {
           degree_title: formData.degree_title.trim(),
           major: formData.major.trim() || null,
           thesis_title: formData.thesis_title.trim() || null,
-          final_gpa: gpaParsed,
+          final_gpa: formData.final_gpa.trim() ? Number(formData.final_gpa) : null,
         }),
       })
 
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.message || "No se pudo completar el registro")
+
+      if (!res.ok) {
+        // Si el server te dice el porqué, lo mostramos
+        throw new Error(data?.message || "No se pudo completar el registro")
+      }
 
       setSuccess(true)
 
@@ -233,7 +210,9 @@ export function GraduateRegisterForm() {
           {success && (
             <div className="bg-green-50 border border-green-200 rounded-md p-4 flex gap-3">
               <AlertCircle className="h-4 w-4 text-green-600 mt-0.5" />
-              <p className="text-green-700 text-sm">Solicitud enviada. Un administrador revisará tu información.</p>
+              <p className="text-green-700 text-sm">
+                Solicitud enviada. Un administrador revisará tu información.
+              </p>
             </div>
           )}
 
@@ -244,6 +223,7 @@ export function GraduateRegisterForm() {
             </div>
           )}
 
+          {/* Datos base */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2">Información Personal</h3>
 
@@ -274,6 +254,7 @@ export function GraduateRegisterForm() {
             </div>
           </div>
 
+          {/* Contacto */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2">Contacto</h3>
 
@@ -311,6 +292,7 @@ export function GraduateRegisterForm() {
             </div>
           </div>
 
+          {/* Info de graduación (BD) */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2">Información de Graduación</h3>
 
@@ -323,13 +305,17 @@ export function GraduateRegisterForm() {
                   onChange={(e) => handleChange("graduation_year", e.target.value)}
                   disabled={isLoading}
                 />
-                {validationErrors.graduation_year && <p className="text-sm text-destructive">{validationErrors.graduation_year}</p>}
+                {validationErrors.graduation_year && (
+                  <p className="text-sm text-destructive">{validationErrors.graduation_year}</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>Título del grado *</Label>
                 <Input value={formData.degree_title} onChange={(e) => handleChange("degree_title", e.target.value)} disabled={isLoading} />
-                {validationErrors.degree_title && <p className="text-sm text-destructive">{validationErrors.degree_title}</p>}
+                {validationErrors.degree_title && (
+                  <p className="text-sm text-destructive">{validationErrors.degree_title}</p>
+                )}
               </div>
             </div>
 
@@ -345,32 +331,12 @@ export function GraduateRegisterForm() {
 
             <div className="space-y-2">
               <Label>GPA final (opcional, 0 a 10)</Label>
-              <Input
-                inputMode="decimal"
-                placeholder="Ej: 9.50"
-                value={formData.final_gpa}
-                onChange={(e) => {
-                  const v = e.target.value
-                  handleChange("final_gpa", v)
-
-                  const r = normalizeGpaInput(v)
-                  setValidationErrors((prev) => {
-                    const copy = { ...prev }
-                    if (v.trim() && !r.ok) copy.final_gpa = r.error || "GPA inválido"
-                    else delete copy.final_gpa
-                    return copy
-                  })
-                }}
-                onBlur={() => {
-                  const r = normalizeGpaInput(formData.final_gpa)
-                  if (r.ok && r.value !== formData.final_gpa) handleChange("final_gpa", r.value)
-                }}
-                disabled={isLoading}
-              />
+              <Input value={formData.final_gpa} onChange={(e) => handleChange("final_gpa", e.target.value)} disabled={isLoading} />
               {validationErrors.final_gpa && <p className="text-sm text-destructive">{validationErrors.final_gpa}</p>}
             </div>
           </div>
 
+          {/* Seguridad */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2">Seguridad</h3>
 
@@ -383,12 +349,7 @@ export function GraduateRegisterForm() {
 
               <div className="space-y-2">
                 <Label>Confirmar contraseña *</Label>
-                <Input
-                  type="password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => handleChange("confirmPassword", e.target.value)}
-                  disabled={isLoading}
-                />
+                <Input type="password" value={formData.confirmPassword} onChange={(e) => handleChange("confirmPassword", e.target.value)} disabled={isLoading} />
                 {validationErrors.confirmPassword && <p className="text-sm text-destructive">{validationErrors.confirmPassword}</p>}
               </div>
             </div>

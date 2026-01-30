@@ -38,6 +38,8 @@ import { supabase } from "@/lib/supabase"
 import { CompanyMenu } from "@/components/company/company-menu"
 import { InteresadosModal } from "@/components/company/interesados-modal"
 import { Users } from "lucide-react"
+import { PostulantesModal } from "@/components/company/postulante-modal"
+
 
 interface Filters {
   search: string
@@ -560,7 +562,10 @@ function OpportunitiesList({
   
   // Estados para modal de interesados
   const [interesadosModalOpen, setInteresadosModalOpen] = useState(false)
+  const [postulantesModalOpen, setPostulantesModalOpen] = useState(false)
   const [selectedOpportunity, setSelectedOpportunity] = useState<{id: string, title: string} | null>(null)
+
+  
 
   // Actualizar cuando cambien las oportunidades del padre
   useEffect(() => {
@@ -571,6 +576,12 @@ function OpportunitiesList({
     setSelectedOpp(opp)
     setOpen(true)
   }
+
+  const openPostulantesModal = (opp: any) => {
+    setSelectedOpportunity({ id: opp.id, title: opp.title })
+    setPostulantesModalOpen(true)
+  }
+
   
   const openInteresadosModal = (opp: any) => {
     setSelectedOpportunity({ id: opp.id, title: opp.title })
@@ -690,6 +701,14 @@ function OpportunitiesList({
                 </div>
 
                 <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openPostulantesModal(opp)}
+                  >
+                    <Users className="h-4 w-4 mr-1" />
+                    Ver postulantes
+                  </Button>
                   {/* BOTÓN NUEVO: Ver Interesados */}
                   <Button 
                     variant="outline" 
@@ -780,6 +799,18 @@ function OpportunitiesList({
           isOpen={interesadosModalOpen}
           onClose={() => {
             setInteresadosModalOpen(false)
+            setSelectedOpportunity(null)
+          }}
+        />
+      )}
+      {/* MODAL POSTULANTES */}
+      {selectedOpportunity && (
+        <PostulantesModal
+          opportunityId={selectedOpportunity.id}
+          opportunityTitle={selectedOpportunity.title}
+          isOpen={postulantesModalOpen}
+          onClose={() => {
+            setPostulantesModalOpen(false)
             setSelectedOpportunity(null)
           }}
         />
