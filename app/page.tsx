@@ -11,7 +11,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <Briefcase className="h-8 w-8 text-primary" />
             <div>
-              <h1 className="text-xl font-bold text-foreground">TEC Empleos</h1>
+              <h1 className="text-xl font-bold text-foreground">Vinculación Empresarial EIPI</h1>
               <p className="text-xs text-muted-foreground">Instituto Tecnológico de Costa Rica</p>
             </div>
           </div>
